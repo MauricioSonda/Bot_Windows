@@ -4,6 +4,7 @@ const { crearExpediente, guardarDocumento } = require('./documentos');
 const MENSAJES = require('./mensajes');
 const { obtenerInscripciones, programasDisponibles } = require('./inscripciones');
 const { formatearOpciones } = require('./programas');
+const { registrarIntentoIncorrecto, reiniciarIntentos } = require('./intentos-documentos');
 
 async function enviarFicha(message, customer, update) {
     const config = obtenerRequisitos(customer.subprograma);
@@ -30,7 +31,7 @@ async function iniciarDocumentos(message, customer, update) {
     await enviarFicha(message, customer, update);
 }
 
-async function manejarDocumentos(message, customer, update) {
+async function manejarDocumentos(message, customer, update, { alDerivar, verificar = () => {} } = {}) {
     if (
         ![
             'enviando_ficha',
@@ -64,6 +65,7 @@ async function manejarDocumentos(message, customer, update) {
         return true;
     }
     if (isText && text === 'no aplica' && requirement.opcional) {
+        reiniciarIntentos(customer, update);
         update({
             documentos: {
                 ...customer.documentos,
@@ -78,6 +80,7 @@ async function manejarDocumentos(message, customer, update) {
             await message.reply(MENSAJES.FALTA_TEXTO);
             return true;
         }
+        reiniciarIntentos(customer, update);
         update({
             documentos: {
                 ...customer.documentos,
@@ -93,7 +96,7 @@ async function manejarDocumentos(message, customer, update) {
         return true;
     }
     if (isText && text === 'siguiente') {
-        if (!entry.archivos.length) await message.reply(MENSAJES.FALTA_ARCHIVO);
+        if (!entry.archivos.length) await registrarIntentoIncorrecto(message, customer, update, 'siguiente_sin_archivo', MENSAJES.FALTA_ARCHIVO, alDerivar);
         else {
             update({
                 documentos: {
@@ -106,7 +109,7 @@ async function manejarDocumentos(message, customer, update) {
         return true;
     }
     if (!['image', 'document'].includes(message.type) || !message.hasMedia) {
-        await message.reply(MENSAJES.FALTA_ARCHIVO);
+        await registrarIntentoIncorrecto(message, customer, update, 'documento_no_enviado', MENSAJES.FALTA_ARCHIVO, alDerivar);
         return true;
     }
     const alreadySaved = Object.values(customer.documentos).some((item) =>
@@ -116,12 +119,13 @@ async function manejarDocumentos(message, customer, update) {
     );
     if (alreadySaved) return true;
     let file;
-    try { file = await guardarDocumento(message, customer, requirement); }
+    try { file = await guardarDocumento(message, customer, requirement, { verificar }); }
     catch (error) {
         if (error.code !== 'ARCHIVO_NO_PERMITIDO') throw error;
-        await message.reply(MENSAJES.ARCHIVO_NO_PERMITIDO);
+        await registrarIntentoIncorrecto(message, customer, update, 'formato_no_permitido', MENSAJES.ARCHIVO_NO_PERMITIDO, alDerivar);
         return true;
     }
+    reiniciarIntentos(customer, update);
     update({
         documentos: {
             ...customer.documentos,

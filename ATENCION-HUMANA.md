@@ -1,5 +1,17 @@
 # Atención humana y futura conexión al dashboard
 
+## Operación y recepción en vivo
+
+El bot inicia con cualquier mensaje directo nuevo, no solo `prueba`. La recepción comienza al aparecer **Listo**, excluyendo conservadoramente ese mismo segundo. Se ignoran fechas anteriores, mensajes sin fecha confiable, duplicados, grupos, estados, canales y notificaciones del sistema. Tras desconectarse se cancelan las respuestas pendientes y, al reconectar, se aplica un nuevo corte temporal; no se contesta la cola de mensajes antiguos. Un sticker puede iniciar una conversación nueva; dentro del flujo sigue ignorándose. El primer adjunto no se guarda como requisito automáticamente.
+
+El dashboard incluye **Apagar bot**, **Pausar bot en este chat**, **Reanudar bot** y **Derivar a atención personal**. Cerrar solo el dashboard no apaga el bot; cerrar la pestaña de WhatsApp o su navegador inicia el cierre ordenado. No se ejecuta logout: se conserva la sesión.
+
+Los comandos propios exactos `!bot pausa`, `!bot reanudar` y `!bot humano` controlan el chat donde se envían. Solo se aceptan mensajes nuevos de la cuenta vinculada (`fromMe`), no comandos escritos por el cliente. La pausa persiste en `controlBot` dentro de los datos del cliente. Se cancelan las esperas y se verifica el permiso antes de cada envío. Reanudar no envía mensajes pendientes: espera una interacción nueva; durante la preparación de documentos, el cliente puede escribir `reanudar`. Una atención humana pendiente debe marcarse atendida antes de reactivar.
+
+En el cuarto intento incorrecto de un mismo requisito se crea una solicitud humana con motivo `intentos_documento`, cantidad y requisito. Se cuentan formatos rechazados y `siguiente` sin archivo; los errores técnicos no cuentan, y los stickers se ignoran. La recepción correcta reinicia el contador del requisito. Esto verifica formato y entrega, no la autenticidad, nitidez ni correspondencia de una foto con una INE.
+
+`control-conversaciones.js` administra recepción, pausas y cancelación; `intentos-documentos.js` conserva los contadores. `control-ejecucion.js` evita instancias duplicadas y publica el control local en `.control-bot.json`, excluido de Git. Las rutas `/api/control/*` requieren un token aleatorio de ejecución y restringen origen y host local. El apagado termina la recepción, cancela esperas, cierra el navegador del bot y libera su control local.
+
 ## Revisión personal e historial
 
 Al final del detalle de una inscripción, “Revisar documentos de este programa” abre un segundo modal.

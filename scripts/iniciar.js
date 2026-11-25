@@ -46,16 +46,35 @@ async function prepararInstalacion() {
 }
 
 async function iniciar() {
-    await prepararInstalacion();
     const config = require('../configuracion');
-    require('../entorno').prepararDatos(config);
+    const { adquirirInstancia, solicitarControl } = require('../control-ejecucion');
+    try {
+        const datos = JSON.parse(fs.readFileSync(config.ARCHIVO_CONTROL, 'utf8'));
+        await solicitarControl(datos, 'mostrar');
+        console.log('El bot ya estaba iniciado. Se abrió su dashboard.');
+        return;
+    } catch (_) { /* No hay una instancia disponible todavía. */ }
+    let inicio;
+    try { inicio = adquirirInstancia(path.join(config.CARPETA_DATOS, '.iniciador.json')); }
+    catch (error) { if (error.code === 'BOT_YA_ACTIVO') { console.log('El bot ya está iniciándose. Espere a que aparezca Chrome.'); return; } throw error; }
+    process.once('exit', () => inicio.liberar());
+    try {
+        await prepararInstalacion();
+        require('../entorno').prepararDatos(config);
+        if (process.platform === 'win32') {
+            const accesos = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'crear-accesos.ps1'),
+                '-ArchivoControl', config.ARCHIVO_CONTROL, '-DatosDir', config.CARPETA_DATOS, '-ExpedientesDir', config.CARPETA_EXPEDIENTES,
+                '-ChromePath', process.env.BOT_CHROME_PATH, '-Puerto', String(config.API_ATENCION.PUERTO)], { stdio: 'inherit', windowsHide: true });
+            if (accesos.error || accesos.status !== 0) console.warn('No se pudieron crear los accesos directos. Puede usar iniciar-bot.cmd y el botón Apagar bot del dashboard.');
+        }
+    } catch (error) { inicio.liberar(); throw error; }
     console.log(`Expedientes: ${config.CARPETA_EXPEDIENTES}`);
-    console.log('Al aparecer el QR, vincule WhatsApp. Espere el mensaje Listo. Ctrl+C detiene el bot.');
+    console.log('Al aparecer el QR, vincule WhatsApp. Espere Listo para recibir mensajes nuevos.');
     const bot = spawn(process.execPath, [path.join(root, 'prueba-atencion.js')], { cwd: root, stdio: 'inherit' });
     process.on('SIGINT', () => { if (process.platform !== 'win32') bot.kill('SIGINT'); });
     process.on('SIGTERM', () => bot.kill('SIGTERM'));
-    bot.on('error', (error) => { console.error(error.message); process.exitCode = 1; });
-    bot.on('exit', (code) => { process.exitCode = code || 0; });
+    bot.on('error', (error) => { inicio.liberar(); console.error(error.message); process.exitCode = 1; });
+    bot.on('exit', (code) => { inicio.liberar(); process.exitCode = code || 0; });
 }
 
 if (require.main === module) {

@@ -1,4 +1,9 @@
+param([string]$DatosDir, [string]$ExpedientesDir, [string]$ChromePath, [int]$Puerto = 0)
 $ErrorActionPreference = 'Stop'
+if ($DatosDir) { $env:BOT_DATA_DIR = $DatosDir }
+if ($ExpedientesDir) { $env:BOT_EXPEDIENTES_DIR = $ExpedientesDir }
+if ($ChromePath) { $env:BOT_CHROME_PATH = $ChromePath }
+if ($Puerto -gt 0) { $env:ATENCION_API_PORT = [string]$Puerto }
 Set-Location (Split-Path -Parent $PSScriptRoot)
 
 function Find-Node {

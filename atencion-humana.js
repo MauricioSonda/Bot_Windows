@@ -51,6 +51,7 @@ function registrarSolicitud(
         subprograma: cliente?.subprograma || null,
         estado: 'pendiente',
         motivo,
+        detalleDerivacion: cliente?.detalleDerivacion || null,
         destinoAtencion: cliente?.destinoAtencion || 'programas',
         estadoFlujoAnterior: cliente?.estado || null,
         expedienteId: cliente?.expedienteId || null,
@@ -117,7 +118,7 @@ function crearControlAtencion({
                     item.estado === 'atendido',
             );
             if (!cerrada) return true;
-            if (texto === CONFIG.COMANDOS.INICIO) return false;
+            if (CONFIG.ACTIVAR_CON_CUALQUIER_MENSAJE || texto === CONFIG.COMANDOS.INICIO) return false;
             if (texto !== CONFIG.COMANDOS.AYUDA) return true;
         }
 

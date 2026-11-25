@@ -31,11 +31,12 @@ function crearExpediente(nombre, contactId, programa) {
     };
 }
 
-async function guardarDocumento(message, customer, requirement, { raiz = CARPETA_EXPEDIENTES } = {}) {
+async function guardarDocumento(message, customer, requirement, { raiz = CARPETA_EXPEDIENTES, verificar = () => {} } = {}) {
     const media = await message.downloadMedia();
     if (!media?.data)
         throw new Error('El archivo no está disponible para descargar.');
     const { contenido, extension, mimetype } = await validarArchivo(media);
+    verificar();
     const directory = customer.carpetaExpediente;
     const relative = path.relative(raiz, directory);
     if (!relative || relative.startsWith('..') || path.isAbsolute(relative))

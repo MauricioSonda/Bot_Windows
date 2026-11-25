@@ -98,9 +98,10 @@ test('El procesador real aplica el retraso inicial y los 5 segundos en nombre, p
     const config = { ...CONFIG, ARCHIVO_CLIENTES: path.join(carpeta, 'clientes.json'),
         ARCHIVO_ATENCION_HUMANA: path.join(carpeta, 'atencion.json'), ARCHIVO_REVISIONES: path.join(carpeta, 'revisiones.json'),
         CARPETA_DATOS: carpeta, CARPETA_EXPEDIENTES: path.join(carpeta, 'expedientes') };
+    let destruido = 0, servidorCerrado = 0;
     class ClienteSimulado extends EventEmitter {
         async initialize() {}
-        async destroy() {}
+        async destroy() { destruido += 1; }
     }
     const esperas = [], respuestas = [];
     const dependencias = {
@@ -109,7 +110,8 @@ test('El procesador real aplica el retraso inicial y los 5 segundos en nombre, p
         './retrasos': { crearRespuestaConRetraso: (mensaje, opciones) => crearRespuestaConRetraso(mensaje, {
             ...opciones, config, aleatorio: () => 0, ahora: () => 1000, esperar: async (ms) => esperas.push(ms),
         }) },
-        './dashboard-local': { iniciarDashboardLocal: async () => ({ cerrar: async () => {} }) },
+        './dashboard-local': { iniciarDashboardLocal: async () => ({ cerrar: async () => { servidorCerrado += 1; } }) },
+        './control-ejecucion': { adquirirInstancia: () => ({ token: 'prueba', publicar() {}, liberar() {} }) },
         './telefonos': { resolverTelefono: async () => '123' },
         './atencion-humana': { crearControlAtencion: (opciones) => crearControlAtencion({ ...opciones, consultar: () => [],
             registrar: () => { throw new Error('Esta prueba no debe registrar atención real.'); } }) },
@@ -120,6 +122,7 @@ test('El procesador real aplica el retraso inicial y los 5 segundos en nombre, p
         process: { once() {}, exit() {} },
     });
     vm.runInContext(fs.readFileSync(path.join(__dirname, 'prueba-atencion.js'), 'utf8'), contexto);
+    vm.runInContext('control.activar()', contexto);
     const procesar = vm.runInContext('procesarMensaje', contexto);
     const enviar = async (body, type = 'chat') => {
         const inicio = esperas.length;
@@ -127,7 +130,7 @@ test('El procesador real aplica el retraso inicial y los 5 segundos en nombre, p
             reply: async (texto) => respuestas.push(texto) }, 1000);
         return esperas.slice(inicio);
     };
-    assert.deepEqual(await enviar('prueba'), [150000]);
+    assert.deepEqual(await enviar('Hola'), [150000]);
     assert.equal(respuestas.length, 2);
     assert.deepEqual(await enviar('Persona Prueba'), [5000]);
     assert.deepEqual(await enviar('2'), [5000]);
@@ -139,4 +142,22 @@ test('El procesador real aplica el retraso inicial y los 5 segundos en nombre, p
         expedienteId: 'EXP-prueba', indiceDocumento: 0, documentos: {}, requisitos: [{ id: 'Dato', nombre: 'Dato', tipo: 'texto' }] });
     assert.deepEqual(await enviar('Dato de prueba'), [5000]);
     assert.deepEqual(await enviar('', 'sticker'), []);
+    const client = vm.runInContext('client', contexto);
+    const numeroAntes = respuestas.length;
+    client.emit('message', { from: '789@c.us', type: 'chat', body: 'Ayer', timestamp: Math.floor(Date.now() / 1000) - 86400,
+        id: { _serialized: 'anterior' }, reply: async (texto) => respuestas.push(texto) });
+    assert.equal(vm.runInContext("messageQueues.has('789@c.us')", contexto), false);
+    const reciente = { from: '789@c.us', type: 'sticker', body: '', timestamp: Math.floor(Date.now() / 1000) + 2,
+        id: { _serialized: 'nuevo' }, reply: async (texto) => respuestas.push(texto) };
+    client.emit('message', reciente);
+    client.emit('message', { ...reciente, id: { _serialized: 'otro-saludo' } });
+    await vm.runInContext("messageQueues.get('789@c.us')", contexto);
+    assert.equal(respuestas.length - numeroAntes, 2);
+    assert.equal(vm.runInContext("customerData['789@c.us'].nombreCompleto", contexto), null);
+    contexto.paginaPrueba = new EventEmitter(); contexto.navegadorPrueba = new EventEmitter();
+    vm.runInContext('client.pupPage = paginaPrueba; client.pupBrowser = navegadorPrueba; vigilarNavegador()', contexto);
+    contexto.paginaPrueba.emit('close');
+    await vm.runInContext('cierre', contexto);
+    assert.equal(destruido, 1);
+    assert.equal(servidorCerrado, 1);
 });

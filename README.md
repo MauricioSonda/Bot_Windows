@@ -1,6 +1,6 @@
 # Bot de atención CODESVI para Windows
 
-Copia independiente del bot y dashboard local, preparada para un repositorio nuevo. Conserva el flujo por `prueba`, Certeza jurídica, atención humana, inscripciones, documentos, vistas previas, revisiones e historial.
+Copia independiente del bot y dashboard local. Conserva Certeza jurídica, atención humana, inscripciones, documentos, vistas previas, revisiones e historial. Cualquier mensaje directo nuevo puede iniciar la bienvenida.
 
 ## Ejecutar
 
@@ -16,9 +16,17 @@ El mismo comando sirve para el primer inicio y los posteriores. Necesita Interne
 2. Instala las dependencias fijadas y Chrome compatible con Puppeteer. El primer inicio puede tardar varios minutos; después reutiliza la instalación salvo que cambien las dependencias.
 3. Crea los datos locales y abre WhatsApp con el dashboard en otra pestaña.
 4. Escanee el QR desde WhatsApp > Dispositivos vinculados. Espere **Listo** en la terminal.
-5. Desde otro teléfono, envíe `prueba` al número vinculado.
+5. Desde otro teléfono, envíe un mensaje nuevo al número vinculado después de aparecer **Listo**.
 
-**Ctrl+C** detiene el bot. Espere su cierre; si Windows pregunta si desea terminar el proceso por lotes, confirme después. No ejecute dos instancias con los mismos datos.
+Después de la primera preparación se crean dos accesos en el Escritorio: **Iniciar bot CODESVI** y **Detener bot CODESVI**. El primero ejecuta el iniciador con la terminal minimizada; el segundo solicita un apagado ordenado, sin usar Ctrl+C ni terminar otros Chrome. Conservan las rutas locales configuradas. Si se mueve el proyecto, vuelva a ejecutar `iniciar-bot.cmd` para regenerarlos. Un doble clic cuando ya está encendido abre el dashboard de la misma instancia; durante la instalación no inicia una segunda copia.
+
+También puede apagarlo con **Apagar bot** en el dashboard o cerrando la pestaña de WhatsApp o el navegador del bot. Cerrar solo la pestaña del dashboard no lo apaga. **Ctrl+C** sigue disponible. Las sesiones y expedientes se conservan al apagar.
+
+En los detalles puede pausar, reanudar o derivar un chat a atención personal. Alternativamente, desde la cuenta vinculada envíe exactamente `!bot pausa`, `!bot reanudar` o `!bot humano` en ese chat. El cliente no puede ejecutar estos comandos ni quitar una pausa del encargado. La pausa cancela las respuestas pendientes y se conserva después de reiniciar. Una atención humana pendiente debe marcarse como atendida antes de reactivar el bot.
+
+En el cuarto intento incorrecto de un mismo requisito se deriva a atención humana, conservando el avance y mostrando el motivo en el dashboard. Se cuentan archivos rechazados y `siguiente` sin documento; los stickers y fallos técnicos no cuentan. Se valida el formato del archivo, no si la imagen corresponde a la INE ni si es legible.
+
+La recepción comienza cuando aparece **Listo** y excluye ese mismo segundo para evitar ambigüedades de fecha. Se ignoran mensajes anteriores, sin fecha confiable o duplicados, incluidos los que llegan al sincronizar o reconectar. Los mensajes recibidos durante la instalación o sin conexión no activan el bot después. Mantenga el reloj de Windows sincronizado. Los mensajes repetidos durante la espera inicial no producen varias bienvenidas.
 
 Con Node y las dependencias instaladas también puede usar `npm start`.
 

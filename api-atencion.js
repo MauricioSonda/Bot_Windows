@@ -19,6 +19,7 @@ function crearServidorAtencion({
     abrirCarpeta = abrirCarpetaExpediente,
     leerArchivo = leerArchivoRegistrado,
     revisiones = crearRevisiones(),
+    controlBot = null,
 } = {}) {
     return http.createServer(async (request, response) => {
         const responder = (status, data) => {
@@ -46,7 +47,7 @@ function crearServidorAtencion({
                     ? fs.readFileSync(
                           path.join(__dirname, 'dashboard', entry[0]),
                       )
-                    : `window.DASHBOARD_CONFIG = ${JSON.stringify({ actualizacionMs: DASHBOARD.ACTUALIZACION_MS, requiereToken: Boolean(API_ATENCION.TOKEN) })};`;
+                    : `window.DASHBOARD_CONFIG = ${JSON.stringify({ actualizacionMs: DASHBOARD.ACTUALIZACION_MS, requiereToken: Boolean(API_ATENCION.TOKEN), controlToken: controlBot?.token || null })};`;
                 response.writeHead(200, {
                     'Content-Type': entry
                         ? entry[1]
@@ -80,9 +81,10 @@ function crearServidorAtencion({
                 return botClientes.filter(
                     (item) =>
                         (item.destinoAtencion !== 'certeza' && (item.modalidadAtencion === 'automatizada' ||
+                        (item.iniciadoEn && ['activando', 'esperando_nombre', 'esperando_destino', 'esperando_tipo_atencion', 'inicio_pendiente'].includes(item.estado)) ||
                         item.programa ||
                         Object.keys(item.documentos || {}).length)) ||
-                        item.inscripciones?.length,
+                        item.inscripciones?.length || item.controlBot?.pausado || item.estado === 'activando' || item.estado === 'esperando_nombre',
                 ).map(prepararEstadoDocumentos).map((item) => revisiones.preparar(item));
             const solicitudes = listar();
             return solicitudes.filter((item) => source === 'certeza'
@@ -108,6 +110,32 @@ function crearServidorAtencion({
             return (!request.headers.origin || request.headers.origin === `http://${request.headers.host}`) &&
                 request.headers['sec-fetch-site'] !== 'cross-site' &&
                 String(request.headers['content-type'] || '').startsWith('application/json');
+        }
+        if (url.pathname.startsWith('/api/control/')) {
+            const host = String(request.headers.host || '').split(':')[0];
+            const token = Buffer.from(String(request.headers['x-bot-control'] || ''));
+            const esperado = Buffer.from(String(controlBot?.token || ''));
+            if (!controlBot || !['127.0.0.1', 'localhost'].includes(host) || !esperado.length || token.length !== esperado.length || !timingSafeEqual(token, esperado)) {
+                responder(403, { error: 'Control local no autorizado.' }); return;
+            }
+            if (request.method !== 'GET' && !escrituraPermitida()) { responder(403, { error: 'Solicitud de origen no permitido.' }); return; }
+            try {
+                if (url.pathname === '/api/control/estado' && request.method === 'GET') responder(200, controlBot.estado());
+                else if (url.pathname === '/api/control/apagar' && request.method === 'POST') {
+                    responder(200, { apagando: true });
+                    setTimeout(() => Promise.resolve(controlBot.apagar()).catch(console.error), 150);
+                } else if (url.pathname === '/api/control/mostrar' && request.method === 'POST') {
+                    await controlBot.mostrar(); responder(200, { abierto: true });
+                } else {
+                    const ruta = url.pathname.match(/^\/api\/control\/chats\/([^/]+)(?:\/(pausar|reanudar|derivar))?$/);
+                    const id = ruta && decodeURIComponent(ruta[1]);
+                    if (!ruta || !/^[0-9]+@(c\.us|lid)$/.test(id)) { responder(404, { error: 'Chat no encontrado.' }); return; }
+                    if (request.method === 'GET' && !ruta[2]) responder(200, controlBot.estadoChat(id));
+                    else if (request.method === 'POST' && ruta[2]) responder(200, await controlBot.accionChat(id, ruta[2]));
+                    else responder(405, { error: 'Acción no permitida.' });
+                }
+            } catch (error) { responder(error.status || 500, { error: error.message }); }
+            return;
         }
         function cerrarSolicitudes(resultado) {
             const ids = new Set([resultado.contactoId, ...(resultado.contactosIds || [])]);

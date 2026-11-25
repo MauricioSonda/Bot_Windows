@@ -33,6 +33,10 @@
                 bot.
             </p>
             </div>
+            <div id="control-ejecucion" class="acciones control-ejecucion" hidden>
+                <span id="estado-bot" role="status">Consultando estado del bot…</span>
+                <button id="apagar-bot" type="button">Apagar bot</button>
+            </div>
             <form id="acceso" hidden>
                 <label for="token">Token de acceso a la API</label>
                 <input id="token" type="password" autocomplete="off" required />
@@ -103,6 +107,15 @@
                     Cerrar detalle
                 </button>
                 </div>
+                <section id="control-chat" hidden>
+                    <h3>Control del bot en este chat</h3>
+                    <p id="estado-control-chat" role="status"></p>
+                    <div class="acciones">
+                        <button id="pausar-chat" type="button">Pausar bot en este chat</button>
+                        <button id="reanudar-chat" type="button">Reanudar bot</button>
+                        <button id="derivar-chat" type="button">Derivar a atención personal</button>
+                    </div>
+                </section>
                 <h3>Inscripciones de esta persona</h3>
                 <div id="inscripciones-detalle" class="acciones"></div>
                 <div class="bloque-datos-expediente">

@@ -109,7 +109,7 @@ test('Una opción inválida no avanza ni crea una solicitud', async (t) => {
     assert.equal(e.leer().length, 0);
 });
 
-test('Al marcar atendida, prueba permite iniciar y reanudar no retoma documentos anteriores', async (t) => {
+test('Al marcar atendida, cualquier mensaje nuevo puede iniciar sin retomar automáticamente documentos anteriores', async (t) => {
     const cliente = {
         nombreCompleto: 'Cliente Prueba',
         estado: 'esperando_documento',
@@ -118,7 +118,7 @@ test('Al marcar atendida, prueba permite iniciar y reanudar no retoma documentos
     await e.manejar(e.mensaje('ayuda'), cliente);
     assert.equal(await e.manejar(e.mensaje('prueba'), cliente), true);
     marcarAtendida(cliente.solicitudAtencionId, e.archivo);
-    assert.equal(await e.manejar(e.mensaje('reanudar'), cliente), true);
+    assert.equal(await e.manejar(e.mensaje('reanudar'), cliente), false);
     assert.equal(await e.manejar(e.mensaje('prueba'), cliente), false);
     assert.equal(e.respuestas.length, 1);
 });

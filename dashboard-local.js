@@ -20,10 +20,12 @@ async function iniciarDashboardLocal(client, opciones = {}) {
     let abriendo = false;
     let cerrado = false;
     let timer;
+    let pestana = null;
 
     async function abrirPestana() {
         if (cerrado || abriendo || !client.pupBrowser || !client.pupPage)
             return;
+        if (pestana && !pestana.isClosed()) { await pestana.bringToFront(); return; }
         abriendo = true;
         let page;
         try {
@@ -32,6 +34,8 @@ async function iniciarDashboardLocal(client, opciones = {}) {
                 waitUntil: 'domcontentloaded',
                 timeout: 15000,
             });
+            pestana = page;
+            await page.bringToFront();
             clearInterval(timer);
             if (cerrado) await page.close();
         } catch (error) {
@@ -41,7 +45,7 @@ async function iniciarDashboardLocal(client, opciones = {}) {
                 error.message,
             );
             clearInterval(timer);
-        }
+        } finally { abriendo = false; }
     }
 
     if (DASHBOARD.ABRIR_AL_INICIAR) {
@@ -50,6 +54,7 @@ async function iniciarDashboardLocal(client, opciones = {}) {
 
     return {
         url,
+        mostrar: abrirPestana,
         cerrar() {
             cerrado = true;
             clearInterval(timer);

@@ -1,6 +1,8 @@
 const { OPCIONES_ATENCION, OPCIONES_DESTINO, CERTEZA, COMANDOS } = require('./configuracion');
 
 const MENSAJES = Object.freeze({
+    INTENTO_DOCUMENTO: (cantidad, maximo) => `Intento incorrecto ${cantidad}. Si supera ${maximo} intentos incorrectos en este requisito, una persona encargada continuará la atención.`,
+    DERIVACION_POR_INTENTOS: (nombre) => `${nombre || 'Estimado cliente'}, encontramos dificultades para recibir su documento. Registramos su solicitud de atención personal y conservamos su avance. Una persona encargada continuará por este chat en cuanto sea posible.`,
     ELEGIR_DESTINO: (nombre) => `${nombre}, ¿por qué motivo se comunica?\n\n${OPCIONES_DESTINO.map((opcion, i) => `${i + 1}. ${opcion}`).join('\n')}\n\nResponda con el número o nombre de su elección.`,
     ELEGIR_CERTEZA: `¿Qué trámite de Certeza jurídica necesita?\n\n${CERTEZA.OPCIONES.map((opcion, i) => `${i + 1}. ${opcion}`).join('\n')}`,
     CERTEZA_CONFIRMADA: (nombre, tramite) => `${nombre}, registramos su solicitud de ${tramite}. En la medida de lo posible, una persona encargada le atenderá personalmente por este chat en cuanto esté disponible.`,

@@ -10,6 +10,10 @@ module.exports = Object.freeze({
     MAX_REPLY_DELAY_MS: 3 * 60 * 1000,
     REPLY_DELAY_ENABLED: true,
     FLOW_REPLY_DELAY_MS: 5 * 1000,
+    ACTIVAR_CON_CUALQUIER_MENSAJE: true,
+    MAX_INTENTOS_DOCUMENTO: 3,
+    COMANDOS_ADMIN: Object.freeze({ '!bot pausa': 'pausar', '!bot reanudar': 'reanudar', '!bot humano': 'derivar' }),
+    ARCHIVO_CONTROL: path.join(CARPETA_DATOS, '.control-bot.json'),
     READY_RECOVERY_INTERVAL_MS: 5000,
     TELEFONO_REINTENTO_MS: 60000,
     DASHBOARD: Object.freeze({

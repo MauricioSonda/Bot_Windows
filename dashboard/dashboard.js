@@ -7,6 +7,7 @@ let cargaId = 0;
 let detalleId = 0;
 let urlsArchivos = [];
 let contextoRevision = null;
+let contextoControlChat = null;
 const ESTADOS = {
     pendiente: 'Pendiente',
     validado_personalmente: 'Validado personalmente',
@@ -35,6 +36,7 @@ async function consultar(ruta, opciones = {}, comoBlob = false) {
     const response = await fetch(ruta, {
         ...opciones,
         headers: {
+            ...(config.controlToken && ruta.startsWith('/api/control/') ? { 'X-Bot-Control': config.controlToken } : {}),
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...opciones.headers,
         },
@@ -88,6 +90,8 @@ function esAtencionCerteza(item) {
 }
 
 function descripcionAtencion(item, vistaBot) {
+    if (item.motivo === 'intentos_documento') return `Atención personal: ${item.detalleDerivacion?.cantidad || 4} intentos incorrectos (${item.detalleDerivacion?.requisito || 'documento'})`;
+    if (item.motivo === 'derivacion_administrador') return 'Derivada por el encargado';
     if (item.atencionesCerteza?.length)
         return item.inscripciones?.length ? 'Programas y atención personal de Certeza jurídica' : 'Atención personal de Certeza jurídica';
     if (!vistaBot) return esAtencionCerteza(item) ? 'Atención personal de Certeza jurídica'
@@ -171,9 +175,10 @@ function dibujar() {
             item.validacionPersonal === 'validado' ? 'Validado personalmente' : ESTADOS[item.estado] || item.estado,
         ].entries()) {
             const td = document.createElement('td');
+            const pausado = $('vista').value !== 'historial' && item.controlBot?.pausado;
             if (columna === 6 && $('vista').value === 'historial' && (item.inscripciones?.length || item.atencionesCerteza?.length))
                 td.append(resultadosProgramas(item.inscripciones || [], item.atencionesCerteza));
-            else if (columna === 6) td.append(etiquetaEstado(value || '—', item.validacionPersonal === 'validado' ? 'validado_personalmente' : item.estado));
+            else if (columna === 6) td.append(etiquetaEstado(pausado ? 'Bot pausado' : value || '—', pausado ? 'pendiente' : item.validacionPersonal === 'validado' ? 'validado_personalmente' : item.estado));
             else td.textContent = value || '—';
             tr.append(td);
         }
@@ -212,6 +217,7 @@ async function cargar() {
         actualizacion = new Date().toISOString();
         mostrarError();
         dibujar();
+        if (config.controlToken) actualizarEstadoBot();
     } catch (error) {
         if (estaCarga !== cargaId) return;
         mostrarError(
@@ -234,6 +240,8 @@ async function mostrarDetalle(id, enfocar = true, inscripcionId = null) {
             `/api/${source}/${encodeURIComponent(id)}`,
         );
         if (esteDetalle !== detalleId) return;
+        contextoControlChat = { contactoId: item.contactoId, detalle: esteDetalle };
+        actualizarControlChat();
         liberarArchivos();
         const personaValidada = item.validacionPersonal === 'validado';
         const personaRevisada = item.revisionPersonal === 'revisado' || personaValidada;
@@ -283,6 +291,7 @@ async function mostrarDetalle(id, enfocar = true, inscripcionId = null) {
             ['Solicitado', fecha(item.solicitadoEn)],
             ['Atendido', fecha(item.atendidoEn)],
             ['Etapa anterior', item.estadoFlujoAnterior],
+            ['Derivación', item.detalleDerivacion ? `${item.detalleDerivacion.cantidad} intentos incorrectos: ${item.detalleDerivacion.requisito} (${item.detalleDerivacion.motivo})` : null],
             ['Requisitos pendientes', item.resumenDocumentos?.requisitos
                 .filter((requisito) => ['pendiente', 'incompleto'].includes(requisito.estado) || requisito.revision?.estado === 'incompleto')
                 .map((requisito) => requisito.nombre).join('\n') || 'Ninguno'],
@@ -567,6 +576,47 @@ async function atender(id, button, ids = [id]) {
 }
 
 $('actualizar').addEventListener('click', cargar);
+async function actualizarEstadoBot() {
+    $('control-ejecucion').hidden = !config.controlToken;
+    if (!config.controlToken) return;
+    try {
+        const data = await consultar('/api/control/estado');
+        $('estado-bot').textContent = data.apagando ? 'Apagando bot…' : data.conectado ? 'Bot activo · solo mensajes nuevos' : 'Bot conectándose · recepción detenida';
+    } catch (_) { $('estado-bot').textContent = 'Bot sin conexión'; }
+}
+
+async function actualizarControlChat() {
+    const contexto = contextoControlChat;
+    $('control-chat').hidden = !config.controlToken || !contexto?.contactoId;
+    if ($('control-chat').hidden) return;
+    try {
+        const estado = await consultar(`/api/control/chats/${encodeURIComponent(contexto.contactoId)}`);
+        if (contexto.detalle !== detalleId) return;
+        $('estado-control-chat').textContent = estado.atencionHumana ? 'Atención humana pendiente. El bot no responde en este chat.'
+            : estado.pausado ? 'Bot pausado por el encargado. El cliente no puede quitar esta pausa.' : 'Bot habilitado para el próximo mensaje nuevo del cliente.';
+        $('pausar-chat').disabled = estado.pausado;
+        $('reanudar-chat').disabled = !estado.puedeReanudar;
+        $('derivar-chat').disabled = estado.atencionHumana;
+    } catch (error) { $('estado-control-chat').textContent = error.message; }
+}
+
+for (const [id, accion] of [['pausar-chat', 'pausar'], ['reanudar-chat', 'reanudar'], ['derivar-chat', 'derivar']]) $(id).addEventListener('click', async () => {
+    if (!contextoControlChat) return;
+    $(id).disabled = true;
+    try {
+        await consultar(`/api/control/chats/${encodeURIComponent(contextoControlChat.contactoId)}/${accion}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+        });
+        await actualizarControlChat(); await cargar();
+    } catch (error) { mostrarError(error.message); await actualizarControlChat(); }
+});
+$('apagar-bot').addEventListener('click', async () => {
+    $('apagar-bot').disabled = true;
+    try {
+        await consultar('/api/control/apagar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        $('estado-bot').textContent = 'Apagando bot… Puede cerrar esta ventana.';
+    } catch (error) { mostrarError(error.message); $('apagar-bot').disabled = false; }
+});
 $('estado').addEventListener('change', cargar);
 $('vista').addEventListener('change', () => {
     for (const button of document.querySelectorAll('[data-vista]')) {

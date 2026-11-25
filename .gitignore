@@ -94,3 +94,5 @@ revisiones-documentos.json.*
 respaldos-rutas/
 .instalacion-local.json
 *.zip
+.control-bot.json*
+*.lnk

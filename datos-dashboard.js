@@ -18,7 +18,7 @@ function listarClientes(datos = leerClientes()) {
     const registros = Object.entries(datos)
         .filter(
             ([, cliente]) =>
-                cliente.nombreCompleto ||
+                cliente.nombreCompleto || cliente.controlBot?.pausado ||
                 cliente.iniciadoEn ||
                 cliente.modalidadAtencion === 'automatizada',
         )

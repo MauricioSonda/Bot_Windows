@@ -9,9 +9,11 @@ const {
 } = require('./programas');
 const MENSAJES = require('./mensajes');
 const CONFIG = require('./configuracion');
-const { crearRespuestaConRetraso } = require('./retrasos');
 require('./entorno').prepararDatos(CONFIG);
-const { crearControlAtencion } = require('./atencion-humana');
+const { crearRespuestaConRetraso } = require('./retrasos');
+const { crearControlAtencion, registrarSolicitud, leerSolicitudes } = require('./atencion-humana');
+const { crearControlConversaciones } = require('./control-conversaciones');
+const { adquirirInstancia, solicitarControl } = require('./control-ejecucion');
 const { crearFlujoDestino } = require('./flujo-destino');
 const { iniciarDashboardLocal } = require('./dashboard-local');
 const { resolverTelefono } = require('./telefonos');
@@ -30,6 +32,10 @@ let readyRecoveryInProgress = false;
 let readyRecoveryTimer = null;
 let dashboardLocal = null;
 let deteniendo = false;
+let instancia = null;
+let cierre = null;
+const navegadoresVigilados = new WeakSet();
+const paginasVigiladas = new WeakSet();
 
 function loadCustomerData() {
     try {
@@ -69,6 +75,8 @@ function updateCustomer(contactId, changes) {
 const manejarAtencion = crearControlAtencion({
     actualizarCliente: updateCustomer,
 });
+const control = crearControlConversaciones({ clientes: customerData, actualizarCliente: updateCustomer,
+    registrar: registrarSolicitud, consultar: leerSolicitudes });
 const manejarDestino = crearFlujoDestino({ actualizarCliente: updateCustomer });
 const telefonosConsultados = new Map();
 
@@ -111,11 +119,13 @@ client.on('qr', (qr) => {
 
 client.on('ready', () => {
     clientIsReady = true;
+    control.activar();
+    vigilarNavegador();
     if (readyRecoveryTimer) {
         clearInterval(readyRecoveryTimer);
         readyRecoveryTimer = null;
     }
-    console.log('Listo. Esperando el mensaje "prueba" para iniciar el flujo.');
+    console.log('Listo. Solo se atenderán mensajes nuevos recibidos desde este momento.');
     (async () => {
         for (const contactoId of Object.keys(customerData))
             await actualizarTelefono(contactoId);
@@ -126,15 +136,38 @@ client.on('ready', () => {
         ),
     );
 });
-client.on('auth_failure', (message) =>
-    console.error('Falló la autenticación:', message),
-);
-client.on('disconnected', (reason) =>
-    console.log('WhatsApp se desconectó:', reason),
-);
+client.on('auth_failure', (message) => {
+    clientIsReady = false; control.desactivar();
+    console.error('Falló la autenticación:', message);
+});
+client.on('disconnected', (reason) => {
+    clientIsReady = false; control.desactivar();
+    console.log('WhatsApp se desconectó:', reason);
+});
+client.on('change_state', (state) => {
+    if (state !== 'CONNECTED') control.desactivar();
+    else if (clientIsReady) control.activar();
+});
+
+function vigilarNavegador() {
+    if (client.pupPage?.isClosed?.() || client.pupBrowser?.isConnected?.() === false) {
+        if (!deteniendo) apagarBot();
+        return;
+    }
+    if (client.pupBrowser && !navegadoresVigilados.has(client.pupBrowser)) {
+        navegadoresVigilados.add(client.pupBrowser);
+        client.pupBrowser.once('disconnected', () => { if (!deteniendo) apagarBot(); });
+    }
+    if (client.pupPage && !paginasVigiladas.has(client.pupPage)) {
+        paginasVigiladas.add(client.pupPage);
+        client.pupPage.once('close', () => { if (!deteniendo) apagarBot(); });
+    }
+}
 
 function startReadyRecovery() {
     readyRecoveryTimer = setInterval(async () => {
+        vigilarNavegador();
+        if (deteniendo) return;
         if (clientIsReady || readyRecoveryInProgress || !client.pupPage) return;
 
         readyRecoveryInProgress = true;
@@ -176,34 +209,48 @@ function startReadyRecovery() {
 }
 
 client.on('message_create', (message) => {
+    if (message.fromMe) {
+        control.comando(message).catch((error) => console.error('No se pudo ejecutar el comando de control:', error.message));
+        return;
+    }
     if (!message.fromMe) {
         console.log('Evento de mensaje entrante detectado:', {
             tipo: message.type,
             chatGrupal: message.from.endsWith('@g.us'),
-            coincidePrueba:
-                (message.body || '').trim().toLowerCase() ===
-                CONFIG.COMANDOS.INICIO,
+            recepcionActiva: control.estado().conectado,
         });
     }
 });
 
 const messageQueues = new Map();
+const iniciosReservados = new Set();
+function esEstadoInicio(cliente) {
+    return !cliente?.estado || ['completado', 'error_activacion', 'inicio_pendiente', 'atencion_resuelta'].includes(cliente.estado);
+}
 client.on('message', (message) => {
+    if (!control.aceptar(message) || iniciosReservados.has(message.from) || customerData[message.from]?.estado === 'activando') return;
+    const reserva = esEstadoInicio(customerData[message.from]);
+    if (reserva) iniciosReservados.add(message.from);
+    const contexto = control.contexto(message.from);
     const recibidoEn = Date.now();
     const previous = messageQueues.get(message.from) || Promise.resolve();
     const pending = previous
-        .then(() => procesarMensaje(message, recibidoEn))
+        .then(() => procesarMensaje(message, recibidoEn, contexto))
         .catch((error) => {
+            if (error.code === 'BOT_CANCELADO') return;
             console.error('No se pudo procesar el mensaje:', error.message);
         });
     messageQueues.set(message.from, pending);
     pending.finally(() => {
+        contexto.liberar();
+        if (reserva) iniciosReservados.delete(message.from);
         if (messageQueues.get(message.from) === pending)
             messageQueues.delete(message.from);
     });
 });
 
-async function procesarMensaje(message, recibidoEn = Date.now()) {
+async function procesarMensaje(message, recibidoEn = Date.now(), contexto = control.contexto(message.from)) {
+    contexto.verificar();
     if (message.fromMe) return;
     if (
         message.from.endsWith('@g.us') ||
@@ -214,16 +261,18 @@ async function procesarMensaje(message, recibidoEn = Date.now()) {
         return;
     }
 
-    if (message.type === 'sticker') {
+    if (message.type === 'sticker' && !esEstadoInicio(customerData[message.from])) {
         console.log('Sticker ignorado.');
         return;
     }
 
-    const respuesta = crearRespuestaConRetraso(message, { recibidoEn });
+    const original = message;
+    const respuesta = crearRespuestaConRetraso(message, { recibidoEn, signal: contexto.signal, verificar: contexto.verificar });
     message = respuesta.mensaje;
     const fullText = (message.body || '').trim().replace(/\s+/g, ' ');
     const messageText = fullText.toLowerCase();
     await actualizarTelefono(message.from);
+    contexto.verificar();
     const customer = customerData[message.from];
     const currentState = customer?.estado;
 
@@ -247,13 +296,22 @@ async function procesarMensaje(message, recibidoEn = Date.now()) {
     if (await manejarDestino(message, customer)) return;
 
     const updateDocumentCustomer = (changes) => {
+        contexto.verificar();
         updateCustomer(message.from, changes);
         Object.assign(customer, customerData[message.from]);
     };
     try {
-        if (await manejarDocumentos(message, customer, updateDocumentCustomer))
+        if (await manejarDocumentos(message, customer, updateDocumentCustomer, { verificar: contexto.verificar, alDerivar: async (detalle) => {
+            const solicitud = control.derivar(message.from, 'intentos_documento', message.id?._serialized, detalle);
+            const notificacion = control.contexto(message.from, { notificacion: solicitud.id });
+            try {
+                const salida = crearRespuestaConRetraso(original, { signal: notificacion.signal, verificar: notificacion.verificar });
+                await salida.mensaje.reply(MENSAJES.DERIVACION_POR_INTENTOS(customer.nombreCompleto));
+            } finally { notificacion.liberar(); }
+        } }))
             return;
     } catch (error) {
+        if (error.code === 'BOT_CANCELADO') throw error;
         console.error('Error durante la recopilación:', error.message);
         await message.reply(
             currentState === 'error_ficha' || customer?.estado === 'error_ficha'
@@ -263,7 +321,7 @@ async function procesarMensaje(message, recibidoEn = Date.now()) {
         return;
     }
 
-    if (message.type === 'chat' && messageText === CONFIG.COMANDOS.INICIO) {
+    if (esEstadoInicio(customer) && (CONFIG.ACTIVAR_CON_CUALQUIER_MENSAJE || (message.type === 'chat' && messageText === CONFIG.COMANDOS.INICIO))) {
         if (activationsInProgress.has(message.from)) {
             console.log('La activación de este chat ya está en proceso.');
             return;
@@ -292,9 +350,11 @@ async function procesarMensaje(message, recibidoEn = Date.now()) {
             respuesta.marcarInicio();
             await message.reply(MENSAJES.BOT_ACTIVO);
             await message.reply(MENSAJES.SOLICITAR_NOMBRE);
+            contexto.verificar();
             updateCustomer(message.from, { estado: 'esperando_nombre' });
             console.log('Solicitud de nombre enviada correctamente.');
         } catch (error) {
+            if (error.code === 'BOT_CANCELADO') throw error;
             updateCustomer(message.from, { estado: 'error_activacion' });
             console.error('No se pudo iniciar el flujo:', error.message);
         } finally {
@@ -443,9 +503,16 @@ async function procesarMensaje(message, recibidoEn = Date.now()) {
 
 async function iniciarBot() {
     try {
+        instancia = adquirirInstancia(CONFIG.ARCHIVO_CONTROL);
         dashboardLocal = await iniciarDashboardLocal(client, {
+            controlBot: { token: instancia.token, estado: control.estado, apagar: apagarBot,
+                mostrar: () => dashboardLocal?.mostrar(),
+                estadoChat: control.estadoChat,
+                accionChat: (id, accion) => accion === 'pausar' ? control.pausar(id) : accion === 'reanudar' ? control.reanudar(id)
+                    : (control.derivar(id), control.estadoChat(id)) },
             clientes: () => listarClientes(customerData),
             alAtender: (solicitud) => {
+                control.atendida(solicitud);
                 const cliente = customerData[solicitud.contactoId];
                 if (
                     cliente?.solicitudAtencionId === solicitud.id &&
@@ -458,6 +525,7 @@ async function iniciarBot() {
                 }
             },
         });
+        instancia.publicar({ url: dashboardLocal.url, apiToken: CONFIG.API_ATENCION.TOKEN });
         if (deteniendo) {
             await dashboardLocal.cerrar();
             return;
@@ -465,6 +533,12 @@ async function iniciarBot() {
         startReadyRecovery();
         await client.initialize();
     } catch (error) {
+        if (error.code === 'BOT_YA_ACTIVO') {
+            console.log(error.message);
+            try { await solicitarControl(JSON.parse(fs.readFileSync(CONFIG.ARCHIVO_CONTROL, 'utf8')), 'mostrar'); }
+            catch (_) { console.log('La instancia existente aún puede estar iniciándose.'); }
+            return;
+        }
         console.error(
             'No se pudo iniciar el bot y su dashboard:',
             error.message || error,
@@ -480,11 +554,19 @@ async function iniciarBot() {
 }
 
 async function detenerBot() {
+    if (cierre) return cierre;
     deteniendo = true;
-    if (readyRecoveryTimer) clearInterval(readyRecoveryTimer);
-    if (dashboardLocal) await dashboardLocal.cerrar();
-    await client.destroy().catch(() => {});
+    control.finalizar();
+    cierre = (async () => {
+        if (readyRecoveryTimer) clearInterval(readyRecoveryTimer);
+        await client.destroy().catch(() => {});
+        if (dashboardLocal) await dashboardLocal.cerrar();
+        instancia?.liberar();
+    })();
+    return cierre;
 }
+
+async function apagarBot() { await detenerBot(); process.exit(0); }
 
 for (const signal of ['SIGINT', 'SIGTERM'])
     process.once(signal, async () => {

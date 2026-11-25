@@ -62,22 +62,24 @@ test('Guarda únicamente contenido aprobado, con extensión canónica y sin sobr
     assert.deepEqual(fs.readdirSync(cliente.carpetaExpediente), antes);
 });
 
-test('Un archivo rechazado no crea carpetas, no modifica el JSON y no permite avanzar con siguiente', async (t) => {
+test('Un archivo rechazado solo registra intentos, no crea carpetas ni permite avanzar con siguiente', async (t) => {
     const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'codesvi-rechazados-'));
     t.after(() => fs.rmSync(raiz, { recursive: true, force: true }));
     const cliente = { nombreCompleto: 'Persona Prueba', estado: 'esperando_documento', indiceDocumento: 0,
         documentos: {}, requisitos: [{ id: 'INE', nombre: 'INE' }], carpetaExpediente: path.join(raiz, 'EXP-1') };
     const antes = JSON.stringify(cliente), respuestas = [];
     let actualizaciones = 0;
-    const actualizar = () => { actualizaciones += 1; };
+    const actualizar = (cambios) => { actualizaciones += 1; Object.assign(cliente, cambios); };
     const mensaje = { from: '123@c.us', type: 'document', hasMedia: true, body: '', id: { _serialized: 'm1' },
         downloadMedia: async () => media(Buffer.from('MZ archivo de prueba'), 'adjunto.pdf', 'application/pdf'),
         reply: async (texto) => respuestas.push(texto) };
     assert.equal(await manejarDocumentos(mensaje, cliente, actualizar), true);
-    assert.equal(respuestas.at(-1), MENSAJES.ARCHIVO_NO_PERMITIDO);
+    assert.ok(respuestas.at(-1).startsWith(MENSAJES.ARCHIVO_NO_PERMITIDO));
     assert.equal(fs.existsSync(cliente.carpetaExpediente), false);
-    await manejarDocumentos({ ...mensaje, type: 'chat', body: 'siguiente', hasMedia: false }, cliente, actualizar);
-    assert.equal(respuestas.at(-1), MENSAJES.FALTA_ARCHIVO);
-    assert.equal(JSON.stringify(cliente), antes);
-    assert.equal(actualizaciones, 0);
+    await manejarDocumentos({ ...mensaje, id: { _serialized: 'm2' }, type: 'chat', body: 'siguiente', hasMedia: false }, cliente, actualizar);
+    assert.ok(respuestas.at(-1).startsWith(MENSAJES.FALTA_ARCHIVO));
+    const { intentosDocumentos, ...sinContadores } = cliente;
+    assert.equal(JSON.stringify(sinContadores), antes);
+    assert.equal(Object.values(intentosDocumentos)[0].cantidad, 2);
+    assert.equal(actualizaciones, 2);
 });
