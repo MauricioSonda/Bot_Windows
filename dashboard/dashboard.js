@@ -81,19 +81,37 @@ function etiquetaEstado(texto, estado) {
     return etiqueta;
 }
 
-function resultadosProgramas(inscripciones) {
+function esAtencionCerteza(item) {
+    return item.destinoAtencion === 'certeza' || item.motivo === 'certeza_juridica' ||
+        (!item.inscripciones?.length && normalizar(item.programa).trim() === 'certeza juridica' &&
+            (item.validacionPersonal === 'no_aplica' || item.estado === 'atendido'));
+}
+
+function descripcionAtencion(item, vistaBot) {
+    if (item.atencionesCerteza?.length)
+        return item.inscripciones?.length ? 'Programas y atención personal de Certeza jurídica' : 'Atención personal de Certeza jurídica';
+    if (!vistaBot) return esAtencionCerteza(item) ? 'Atención personal de Certeza jurídica'
+        : item.motivo === 'palabra_ayuda' ? 'Solicitó ayuda' : 'Eligió atención personal';
+    return $('vista').value === 'historial' && !item.inscripciones?.length ? 'Atención personal' : 'Recopilación automatizada';
+}
+
+function resultadosProgramas(inscripciones, atencionesCerteza = []) {
     const contenedor = document.createElement('div');
     contenedor.className = 'estados-programas';
     const validos = inscripciones.filter((item) => item.revision?.estado === 'validado').length;
     const resumen = document.createElement('span');
     resumen.className = 'resumen-programas-validos';
     resumen.textContent = `${validos} de ${inscripciones.length} programas válidos`;
-    contenedor.append(resumen);
+    if (inscripciones.length) contenedor.append(resumen);
     for (const inscripcion of inscripciones) {
         const estado = inscripcion.revision?.estado;
         const resultado = estado === 'validado' ? 'VÁLIDO' : estado === 'incompleto' ? 'NO VÁLIDO' : 'SIN REVISAR';
         contenedor.append(etiquetaEstado(`${inscripcion.subprograma || inscripcion.programa || 'Programa'} · ${resultado}`,
             estado === 'validado' ? 'validado' : estado === 'incompleto' ? 'rechazado' : 'pendiente'));
+    }
+    for (const atencion of atencionesCerteza) {
+        const nombre = ['Certeza jurídica', atencion.subprograma, 'ATENDIDA'].filter(Boolean).join(' · ');
+        contenedor.append(etiquetaEstado(nombre, 'atendido'));
     }
     return contenedor;
 }
@@ -110,6 +128,8 @@ function dibujar() {
         const principal = registros.find((item) => item.estado === 'pendiente') || registro;
         grupos.set(clave, { ...principal, registros,
             inscripciones: [...new Map(registros.flatMap((item) => item.inscripciones || []).map((item) => [item.id, item])).values()],
+            atencionesCerteza: $('vista').value === 'historial' ? [...new Map(registros.filter(esAtencionCerteza)
+                .map((item) => [normalizar(item.subprograma).trim(), item])).values()] : [],
         });
     }
     const visibles = [...grupos.values()].filter((item) => {
@@ -132,6 +152,7 @@ function dibujar() {
                     item.programa,
                     item.subprograma,
                     ...(item.inscripciones || []).map((i) => `${i.programa} ${i.subprograma}`),
+                    ...(item.atencionesCerteza || []).map((atencion) => `Certeza jurídica ${atencion.subprograma || ''}`),
                 ].join(' '),
             ).includes(busqueda)
         );
@@ -144,19 +165,14 @@ function dibujar() {
             fecha($('vista').value === 'historial' ? item.atendidoEn : item.solicitadoEn),
             item.nombreCompleto || 'Nombre no registrado',
             item.telefono ? `+${item.telefono}` : 'Número aún no disponible',
-            [...new Set((item.inscripciones || []).map((i) => i.programa).concat(item.programa || []).filter(Boolean))].join(', '),
-            [...new Set((item.inscripciones || []).map((i) => i.subprograma).concat(item.subprograma || []).filter(Boolean))].join(', '),
-            vistaBot
-                ? 'Recopilación automatizada'
-                : item.motivo === 'certeza_juridica' ? 'Atención personal de Certeza jurídica'
-                : item.motivo === 'palabra_ayuda'
-                  ? 'Solicitó ayuda'
-                  : 'Eligió atención personal',
+            [...new Set((item.inscripciones || []).map((i) => i.programa).concat(item.programa || [], item.atencionesCerteza?.length ? ['Certeza jurídica'] : []).filter(Boolean))].join(', '),
+            [...new Set((item.inscripciones || []).map((i) => i.subprograma).concat(item.subprograma || [], (item.atencionesCerteza || []).map((i) => i.subprograma)).filter(Boolean))].join(', '),
+            descripcionAtencion(item, vistaBot),
             item.validacionPersonal === 'validado' ? 'Validado personalmente' : ESTADOS[item.estado] || item.estado,
         ].entries()) {
             const td = document.createElement('td');
-            if (columna === 6 && $('vista').value === 'historial' && item.inscripciones?.length)
-                td.append(resultadosProgramas(item.inscripciones));
+            if (columna === 6 && $('vista').value === 'historial' && (item.inscripciones?.length || item.atencionesCerteza?.length))
+                td.append(resultadosProgramas(item.inscripciones || [], item.atencionesCerteza));
             else if (columna === 6) td.append(etiquetaEstado(value || '—', item.validacionPersonal === 'validado' ? 'validado_personalmente' : item.estado));
             else td.textContent = value || '—';
             tr.append(td);

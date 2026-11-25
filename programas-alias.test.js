@@ -27,9 +27,26 @@ test('Números y alias respetan las opciones disponibles; no se adivinan opcione
     assert.equal(encontrarOpcion('estufa', obtenerProgramas()), 'Equipamiento');
     assert.equal(encontrarOpcion('estufa', ['Estufas ecológicas']), 'Estufas ecológicas');
     assert.equal(encontrarOpcion('estufa', ['Equipamiento', 'Estufas ecológicas']), undefined);
-    assert.equal(encontrarOpcion('cuarto', obtenerSubprogramas('Ampliación de vivienda')), undefined);
+    assert.equal(encontrarOpcion('cuarto', obtenerSubprogramas('Ampliación de vivienda')), 'Cuarto de baño');
     for (const entrada of ['', ' ', '9', '1abc', 'pisox'])
         assert.equal(encontrarOpcion(entrada, ['Piso firme']), undefined);
+});
+
+test('Cuarto significa Cuarto de baño; las frases habituales, puntuación y variantes se reconocen sin aceptar negaciones', () => {
+    const ampliacion = obtenerSubprogramas('Ampliación de vivienda');
+    for (const entrada of ['Cuarto', 'CUARTOS', 'sanitario', 'Quiero un cuarto', 'Me interesa el programa de baño', 'Hola, quisiera inscribirme al programa de cuarto, por favor', '2.'])
+        assert.equal(encontrarOpcion(entrada, ampliacion), 'Cuarto de baño', entrada);
+    for (const entrada of ['habitación', 'habitaciones', 'dormitorios', 'cuarto para dormir', 'Quiero una recámara'])
+        assert.equal(encontrarOpcion(entrada, ampliacion), 'Recámara', entrada);
+    for (const entrada of ['techado', 'techos firmes', 'quisiera techo', 'techo-firme'])
+        assert.equal(encontrarOpcion(entrada, obtenerSubprogramas('Mejoramiento de vivienda')), 'Techo firme', entrada);
+    assert.equal(encontrarOpcion('estufa de leña', ['Estufas ecológicas']), 'Estufas ecológicas');
+    assert.equal(encontrarOpcion('regularizar terreno', ['Escrituración', 'Regularización']), 'Regularización');
+    assert.equal(encontrarOpcion('escriturar predio', ['Escrituración', 'Regularización']), 'Escrituración');
+    assert.equal(encontrarOpcion('Equipamiento (estufas ecologicas)', obtenerProgramas()), 'Equipamiento');
+    for (const entrada of ['no quiero el baño', 'piso y techo', 'no', 'no quiero cuarto'])
+        assert.equal(encontrarOpcion(entrada, [...ampliacion, ...obtenerSubprogramas('Mejoramiento de vivienda')]), undefined, entrada);
+    assert.equal(encontrarOpcion('Cuarto', ['Recámara']), undefined);
 });
 
 test('El flujo separado de Certeza jurídica acepta escrituras y regularizar', async () => {

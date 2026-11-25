@@ -6,17 +6,17 @@ const PROGRAMAS_DISPONIBLES = Object.freeze({
 });
 
 const ALIAS_DE_OPCIONES = Object.freeze({
-    'Mejoramiento de vivienda': Object.freeze(['mejoramiento', 'mejorar vivienda']),
-    'Ampliación de vivienda': Object.freeze(['ampliacion', 'ampliar vivienda']),
-    'Certeza jurídica': Object.freeze(['certeza', 'certeza juridica']),
-    Equipamiento: Object.freeze(['equipamiento', 'estufa', 'estufas', 'estufa ecologica', 'estufas ecologicas']),
-    'Piso firme': Object.freeze(['piso', 'pisos', 'piso firme']),
-    'Techo firme': Object.freeze(['techo', 'techos', 'techo firme']),
-    Recámara: Object.freeze(['recamara', 'recamaras', 'habitacion', 'dormitorio']),
-    'Cuarto de baño': Object.freeze(['bano', 'banos', 'cuarto de bano', 'cuarto para bano', 'cuarto bano']),
-    Regularización: Object.freeze(['regularizacion', 'regularizar', 'regularizacion de predio', 'regularizacion de terreno']),
-    Escrituración: Object.freeze(['escrituracion', 'escritura', 'escrituras', 'escriturar']),
-    'Estufas ecológicas': Object.freeze(['estufa', 'estufas', 'estufa ecologica', 'estufas ecologicas', 'ecologica', 'ecologicas']),
+    'Mejoramiento de vivienda': Object.freeze(['mejoramiento', 'mejora', 'mejoras', 'mejora de vivienda', 'mejoras de vivienda', 'mejoramiento vivienda', 'mejorar vivienda']),
+    'Ampliación de vivienda': Object.freeze(['ampliacion', 'ampliaciones', 'ampliar', 'ampliacion vivienda', 'ampliar vivienda']),
+    'Certeza jurídica': Object.freeze(['certeza', 'certeza juridica', 'certeza legal', 'tramite juridico']),
+    Equipamiento: Object.freeze(['equipamiento', 'equipar', 'equipo', 'estufa', 'estufas', 'estufa ecologica', 'estufas ecologicas', 'estufa de lena', 'estufas de lena', 'estufa ahorradora', 'estufas ahorradoras']),
+    'Piso firme': Object.freeze(['piso', 'pisos', 'piso firme', 'pisos firmes']),
+    'Techo firme': Object.freeze(['techo', 'techos', 'techo firme', 'techos firmes', 'techado', 'techado firme']),
+    Recámara: Object.freeze(['recamara', 'recamaras', 'habitacion', 'habitaciones', 'dormitorio', 'dormitorios', 'cuarto de dormir', 'cuarto para dormir', 'cuarto dormitorio']),
+    'Cuarto de baño': Object.freeze(['cuarto', 'cuartos', 'bano', 'banos', 'cuarto de bano', 'cuartos de bano', 'cuarto para bano', 'cuarto bano', 'cuarto del bano', 'cuarto para el bano', 'sanitario', 'sanitarios', 'cuarto sanitario']),
+    Regularización: Object.freeze(['regularizacion', 'regularizaciones', 'regularizar', 'regularizar predio', 'regularizar terreno', 'regularizacion de predio', 'regularizacion de terreno', 'regularizacion del predio', 'regularizacion del terreno', 'regularizacion predio', 'regularizacion terreno']),
+    Escrituración: Object.freeze(['escrituracion', 'escrituraciones', 'escritura', 'escrituras', 'escriturar', 'escriturar predio', 'escriturar terreno', 'escritura de predio', 'escritura de terreno', 'escrituracion de predio', 'escrituracion de terreno']),
+    'Estufas ecológicas': Object.freeze(['estufa', 'estufas', 'estufa ecologica', 'estufas ecologicas', 'ecologica', 'ecologicas', 'estufa de lena', 'estufas de lena', 'estufa ahorradora', 'estufas ahorradoras', 'estufa ahorradora de lena']),
 });
 
 const ETIQUETAS_DE_PROGRAMAS = Object.freeze({
@@ -29,7 +29,26 @@ function normalizarOpcion(value) {
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
-        .replace(/\s+/g, ' ');
+        .replace(/[¿?¡!.,;:()/_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function normalizarEntrada(value) {
+    let texto = normalizarOpcion(value).trim().replace(/\s+por favor$/, '');
+    const prefijos = [
+        /^(?:hola|buenos dias|buenas tardes|buenas noches|por favor)\s+/,
+        /^(?:quiero|quisiera|necesito|solicito|me interesa|vengo por|es por|estoy interesado en|estoy interesada en|me comunico por)\s+/,
+        /^(?:inscribirme|registrarme|inscribir|registrar)(?:\s+(?:en|a|al))?\s+/,
+        /^(?:(?:el|la|los|las|un|una)\s+)?(?:programa|subprograma|opcion)(?:\s+(?:de|del|para))?\s+/,
+        /^(?:el|la|los|las|un|una|a|al|en|para)\s+/,
+    ];
+    for (let i = 0; i < 6; i += 1) {
+        const anterior = texto;
+        for (const prefijo of prefijos) texto = texto.replace(prefijo, '');
+        if (texto === anterior) break;
+    }
+    return texto.trim();
 }
 
 function obtenerProgramas() {
@@ -50,7 +69,7 @@ function formatearOpciones(options) {
 }
 
 function encontrarOpcion(input, options) {
-    const trimmedInput = String(input || '').trim();
+    const trimmedInput = normalizarEntrada(input);
     if (!trimmedInput) return undefined;
     const optionNumber = Number.parseInt(trimmedInput, 10);
 
