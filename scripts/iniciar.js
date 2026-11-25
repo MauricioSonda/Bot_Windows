@@ -5,7 +5,7 @@ const { spawnSync, spawn } = require('child_process');
 const root = path.resolve(__dirname, '..');
 process.chdir(root);
 
-function prepararInstalacion() {
+async function prepararInstalacion() {
     if (Number(process.versions.node.split('.')[0]) < 24) throw new Error('Se requiere Node.js 24 o superior.');
     const firma = createHash('sha256').update(fs.readFileSync('package-lock.json')).update(fs.readFileSync('package.json'))
         .update(`${process.platform}/${process.arch}/${process.versions.node.split('.')[0]}`).digest('hex');
@@ -29,18 +29,24 @@ function prepararInstalacion() {
         // Una descarga de Chrome fallida no debe obligar a reinstalar node_modules.
         guardarInstalacion();
     }
-    const puppeteer = require('puppeteer');
-    const navegador = process.env.BOT_CHROME_PATH || puppeteer.executablePath();
-    if (!fs.existsSync(navegador)) {
-        if (process.env.BOT_CHROME_PATH) throw new Error('BOT_CHROME_PATH no apunta a un navegador existente.');
-        ejecutar(process.execPath, [path.join(__dirname, 'preparar-chrome.js')]);
-        if (!fs.existsSync(navegador)) throw new Error('No se pudo descargar Chrome. Revise su conexión y repita el comando.');
-    }
+    let navegador = process.env.BOT_CHROME_PATH;
+    if (navegador && !fs.statSync(navegador, { throwIfNoEntry: false })?.isFile()) throw new Error('BOT_CHROME_PATH no apunta a un navegador existente.');
+    if (!navegador) navegador = await require('./preparar-chrome').prepararChrome({
+        instalarChromeSistema: process.platform === 'win32' ? async () => {
+            console.log('Windows puede solicitar autorización para instalar Google Chrome.');
+            ejecutar('winget.exe', ['install', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--accept-source-agreements', '--accept-package-agreements']);
+        } : undefined,
+    });
+    if (!navegador || !fs.statSync(navegador, { throwIfNoEntry: false })?.isFile())
+        throw new Error(`El navegador preparado no tiene un ejecutable disponible: ${navegador || '(sin ruta)'}`);
+    // El bot debe utilizar exactamente la ruta que se verificó, no otra calculada antes de instalar.
+    process.env.BOT_CHROME_PATH = navegador;
     guardarInstalacion();
+    return navegador;
 }
 
-function iniciar() {
-    prepararInstalacion();
+async function iniciar() {
+    await prepararInstalacion();
     const config = require('../configuracion');
     require('../entorno').prepararDatos(config);
     console.log(`Expedientes: ${config.CARPETA_EXPEDIENTES}`);
@@ -53,6 +59,6 @@ function iniciar() {
 }
 
 if (require.main === module) {
-    try { iniciar(); } catch (error) { console.error(error.message); process.exitCode = 1; }
+    iniciar().catch((error) => { console.error(error.message); process.exitCode = 1; });
 }
 module.exports = { prepararInstalacion };

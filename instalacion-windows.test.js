@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const vm = require('vm');
 const browsers = require(require.resolve('@puppeteer/browsers', { paths: [path.dirname(require.resolve('puppeteer/package.json'))] }));
-const { prepararChrome } = require('./scripts/preparar-chrome');
+const { prepararChrome, detectarChromeWindows, describirError } = require('./scripts/preparar-chrome');
 
 function escenario(t, instalador) {
     const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'codesvi-cache-chrome-'));
@@ -21,8 +21,8 @@ function escenario(t, instalador) {
             if (instalador) return instalador({ opciones, ejecutable, carpeta, llamadas });
             fs.mkdirSync(path.dirname(ejecutable), { recursive: true }); fs.writeFileSync(ejecutable, 'chrome de prueba');
         } };
-    const preparar = () => prepararChrome({ puppeteer: { default: { configuration: config },
-        PUPPETEER_REVISIONS: { chrome: opciones.buildId } }, browsers: api, log: () => {} });
+    const preparar = (extra = {}) => prepararChrome({ puppeteer: { default: { configuration: config },
+        PUPPETEER_REVISIONS: { chrome: opciones.buildId } }, browsers: api, log: () => {}, ...extra });
     return { raiz, config, opciones, ejecutable, carpeta, llamadas, preparar };
 }
 
@@ -70,14 +70,14 @@ test('No elimina ni sustituye un ejecutable configurado por el usuario', async (
     assert.equal(e.llamadas.length, 0);
 });
 
-test('El iniciador separa npm de Chrome: un fallo del navegador no reinstala las dependencias al reintentar', (t) => {
+test('El iniciador separa npm de Chrome y transmite al bot la ruta real sin recalcularla', async (t) => {
     const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'codesvi-bootstrap-'));
     t.after(() => fs.rmSync(raiz, { recursive: true, force: true }));
     for (const name of ['package.json', 'package-lock.json']) fs.writeFileSync(path.join(raiz, name), '{}');
     const npmCli = path.join(raiz, 'npm-cli.js'); fs.writeFileSync(npmCli, '');
     const ejecutable = path.join(raiz, 'chrome.exe');
     const fsAislado = new Proxy(fs, { get(target, propiedad) {
-        if (['readFileSync', 'writeFileSync', 'existsSync'].includes(propiedad))
+        if (['readFileSync', 'writeFileSync', 'existsSync', 'statSync'].includes(propiedad))
             return (archivo, ...args) => target[propiedad](path.isAbsolute(archivo) ? archivo : path.join(raiz, archivo), ...args);
         return target[propiedad];
     } });
@@ -87,7 +87,11 @@ test('El iniciador separa npm de Chrome: un fallo del navegador no reinstala las
         process: { chdir() {}, platform: 'win32', arch: 'x64', execPath: '/node/node.exe', versions: { node: '26.13.1' }, env: { PATH: '', npm_execpath: npmCli } },
         require: (id) => {
             if (id === 'fs') return fsAislado;
-            if (id === 'puppeteer') return { executablePath: () => ejecutable };
+            if (id === './preparar-chrome') return { prepararChrome: async () => {
+                descargas += 1;
+                if (descargas === 1) throw new Error('Extracción fallida de prueba');
+                fs.writeFileSync(ejecutable, 'chrome'); return ejecutable;
+            } };
             if (id === 'child_process') return { spawnSync: (_, args, opciones) => {
                 llamadas.push({ args, opciones });
                 if (args.includes('ci')) {
@@ -96,22 +100,57 @@ test('El iniciador separa npm de Chrome: un fallo del navegador no reinstala las
                     }
                     return { status: 0 };
                 }
-                assert.match(args[0], /preparar-chrome\.js$/);
-                descargas += 1;
-                if (descargas === 1) return { status: 1 };
-                fs.writeFileSync(ejecutable, 'chrome'); return { status: 0 };
+                throw new Error('No se esperaba este comando: ' + args.join(' '));
             } };
             return require(id);
         },
     });
     vm.runInContext(fs.readFileSync(path.join(__dirname, 'scripts', 'iniciar.js'), 'utf8'), contexto);
     const iniciar = contexto.module.exports.prepararInstalacion;
-    assert.throws(iniciar, /Falló la preparación/);
+    await assert.rejects(iniciar(), /Extracción fallida/);
     assert.equal(fs.existsSync(path.join(raiz, '.instalacion-local.json')), true);
-    iniciar();
+    assert.equal(await iniciar(), ejecutable);
+    assert.equal(vm.runInContext('process.env.BOT_CHROME_PATH', contexto), ejecutable);
     const npm = llamadas.filter((item) => item.args.includes('ci'));
     assert.equal(npm.length, 1);
     assert.equal(npm[0].args.includes('--ignore-scripts'), true);
     assert.equal(npm[0].opciones.env.PUPPETEER_SKIP_DOWNLOAD, 'true');
     assert.equal(descargas, 2);
+});
+
+test('Detecta Chrome de Windows instalado para el usuario y lo utiliza sin descargar ni reparar cachés', async (t) => {
+    const esperado = 'C:\\Users\\Persona Prueba\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe';
+    assert.equal(detectarChromeWindows({ plataforma: 'win32', env: { ProgramFiles: 'C:\\Program Files',
+        'ProgramFiles(x86)': 'C:\\Program Files (x86)', LOCALAPPDATA: 'C:\\Users\\Persona Prueba\\AppData\\Local' },
+    esArchivo: (ruta) => ruta === esperado }), esperado);
+    const e = escenario(t);
+    assert.equal(await e.preparar({ plataforma: 'win32', detectarSistema: () => esperado }), esperado);
+    assert.equal(e.llamadas.length, 0);
+    assert.equal(fs.existsSync(e.carpeta), false);
+});
+
+test('Usa la ruta devuelta por la instalación aunque sea diferente de la calculada inicialmente', async (t) => {
+    let otraRuta;
+    const e = escenario(t, ({ carpeta }) => {
+        otraRuta = path.join(carpeta, 'otra-ubicacion', 'chrome.exe');
+        fs.mkdirSync(path.dirname(otraRuta), { recursive: true }); fs.writeFileSync(otraRuta, 'chrome');
+        return { executablePath: otraRuta };
+    });
+    assert.equal(await e.preparar(), otraRuta);
+    assert.equal(fs.existsSync(e.ejecutable), false);
+});
+
+test('Una extracción fallida muestra la causa y permite usar Chrome instalado por WinGet', async (t) => {
+    const causa = Object.assign(new Error('No se pudo extraer chrome.exe'), { code: 'EPERM' });
+    const error = new Error('Extracción interrumpida', { cause: causa });
+    assert.match(describirError(error), /EPERM: No se pudo extraer chrome\.exe/);
+    const e = escenario(t, () => { throw error; });
+    let disponible = false, instalaciones = 0;
+    const ruta = path.join(e.raiz, 'chrome-sistema.exe');
+    const mensajes = [];
+    assert.equal(await e.preparar({ plataforma: 'win32', detectarSistema: () => disponible ? ruta : null,
+        instalarChromeSistema: async () => { instalaciones += 1; fs.writeFileSync(ruta, 'chrome'); disponible = true; },
+        log: (mensaje) => mensajes.push(mensaje) }), ruta);
+    assert.equal(instalaciones, 1);
+    assert.ok(mensajes.some((mensaje) => mensaje.includes('EPERM')));
 });
