@@ -327,6 +327,12 @@ async function mostrarDetalle(id, enfocar = true, inscripcionId = null) {
                 observacion.textContent = `Revisión: ${documento.revision.observacion}`;
                 li.append(observacion);
             }
+            if (documento.revision?.validadoSinDocumentoDigital) {
+                const aviso = document.createElement('p');
+                aviso.className = 'descripcion-documento';
+                aviso.textContent = 'Validado personalmente sin documento digital completo adjunto.';
+                li.append(aviso);
+            }
             const ul = document.createElement('ul');
             for (const [indice, archivo] of (
                 documento.archivos || []
@@ -417,7 +423,24 @@ function abrirRevision() {
         textarea.maxLength = 2000;
         textarea.value = requisito.revision?.observacion || '';
         nota.append(textarea);
-        fieldset.append(opciones, nota);
+        const avisoManual = document.createElement('p');
+        avisoManual.className = 'aviso-validacion-manual';
+        avisoManual.id = `aviso-validacion-manual-${indice}`;
+        avisoManual.setAttribute('role', 'status');
+        avisoManual.textContent = 'No hay un documento digital completo disponible para este requisito. Si ya lo revisó y guardó manualmente, se recomienda indicarlo en comentarios.';
+        const sinDocumentoDigital = !String(requisito.valor || '').trim() &&
+            !(requisito.archivosGuardados > 0 && !requisito.archivosFaltantes) &&
+            !(requisito.opcional && requisito.estado === 'no_aplica');
+        const actualizarAvisoManual = () => {
+            avisoManual.hidden = !sinDocumentoDigital || opciones.querySelector('input:checked')?.value !== 'validado';
+        };
+        opciones.addEventListener('change', actualizarAvisoManual);
+        actualizarAvisoManual();
+        if (sinDocumentoDigital) {
+            textarea.placeholder = 'Si lo guardó manualmente, indique aquí dónde o cómo quedó registrado.';
+            textarea.setAttribute('aria-describedby', avisoManual.id);
+        }
+        fieldset.append(opciones, avisoManual, nota);
         contenedor.append(fieldset);
     }
     $('revision-documentos').hidden = false;

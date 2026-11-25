@@ -59,13 +59,15 @@ function crearRevisiones({ archivo = ARCHIVO_REVISIONES } = {}) {
             const requisito = requisitos.find((item) => item.id === cambio.id);
             if (!requisito || !['pendiente', 'validado', 'incompleto'].includes(cambio.estado)) throw errorRevision('Estado o requisito inválido.');
             if (cambio.huella !== requisito.huella) throw errorRevision('Los documentos cambiaron. Cierre la revisión y vuelva a abrirla.', 409);
-            if (cambio.estado === 'validado' && !String(requisito.valor || '').trim() &&
+            const validadoSinDocumentoDigital = cambio.estado === 'validado' && !String(requisito.valor || '').trim() &&
                 !(requisito.archivosGuardados > 0 && !requisito.archivosFaltantes) &&
-                !(requisito.opcional && requisito.estado === 'no_aplica')) throw errorRevision(`No puede validar un documento ausente: ${requisito.nombre}.`);
+                !(requisito.opcional && requisito.estado === 'no_aplica');
             const observacion = String(cambio.observacion || '').trim().slice(0, 2000);
             const anterior = data.expedientes[inscripcionId]?.documentos?.[cambio.id];
-            revisiones[cambio.id] = anterior?.estado === cambio.estado && anterior.observacion === observacion && anterior.huella === requisito.huella
-                ? anterior : { estado: cambio.estado, observacion, huella: requisito.huella, revisadoEn: new Date().toISOString() };
+            revisiones[cambio.id] = anterior?.estado === cambio.estado && anterior.observacion === observacion && anterior.huella === requisito.huella &&
+                Boolean(anterior.validadoSinDocumentoDigital) === validadoSinDocumentoDigital
+                ? anterior : { estado: cambio.estado, observacion, validadoSinDocumentoDigital,
+                    huella: requisito.huella, revisadoEn: new Date().toISOString() };
         }
         data.expedientes[inscripcionId] = { documentos: revisiones, actualizadoEn: new Date().toISOString() };
         const resultado = preparar(persona, data);

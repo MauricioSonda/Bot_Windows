@@ -6,7 +6,7 @@ Al final del detalle de una inscripción, “Revisar documentos de este programa
 Cada requisito permite guardar sin revisar, validado personalmente o incompleto/no válido, con una
 observación opcional. Se pueden guardar revisiones parciales. La recepción del bot no valida nada.
 La pestaña del programa aparece verde únicamente al validar todos sus requisitos; si hay un requisito
-marcado incompleto/no válido aparece en tono oscuro. Un documento ausente no puede validarse; un
+marcado incompleto/no válido aparece en tono oscuro. Un documento ausente puede validarse personalmente: el modal recomienda dejar un comentario si se guardó manualmente, sin obligar a escribirlo. La revisión guarda `validadoSinDocumentoDigital` y conserva el comentario; no crea un archivo ni simula su recepción. Un
 requisito opcional declarado no aplicable debe revisarse expresamente para aprobarlo.
 
 `revision-documentos.js` guarda resultados por expediente en `revisiones-documentos.json`, incluyendo

@@ -51,7 +51,7 @@ test('Validación independiente y cierre explícito solo al validar todos los pr
     assert.equal(revisiones.historial()[0].inscripciones[0].revision.estado, 'validado');
 });
 
-test('No valida archivos ausentes ni formularios obsoletos; cambios de archivo exigen nueva revisión', (t) => {
+test('Rechaza formularios obsoletos; un archivo desaparecido requiere revisión y puede validarse manualmente', (t) => {
     const { persona, revisiones, ruta } = escenario(t);
     const preparada = () => revisiones.preparar(prepararEstadoDocumentos(persona));
     const anterior = preparada();
@@ -60,7 +60,30 @@ test('No valida archivos ausentes ni formularios obsoletos; cambios de archivo e
     assert.equal(preparada().inscripciones[0].revision.estado, 'pendiente');
     assert.throws(() => revisiones.guardar(preparada(), 'exp1', cambios(anterior, 'exp1', 'validado')), /cambiaron/);
     fs.unlinkSync(ruta);
-    assert.throws(() => revisiones.guardar(preparada(), 'exp1', cambios(preparada(), 'exp1', 'validado')), /ausente/);
+    const actual = revisiones.guardar(preparada(), 'exp1', cambios(preparada(), 'exp1', 'validado'));
+    assert.equal(actual.inscripciones[0].resumenDocumentos.requisitos[0].revision.validadoSinDocumentoDigital, true);
+});
+
+test('Validar sin adjunto conserva el comentario y no inventa archivos recibidos; el comentario sigue siendo opcional', (t) => {
+    const { persona, revisiones, ruta, archivo } = escenario(t);
+    fs.unlinkSync(ruta);
+    const preparada = () => revisiones.preparar(prepararEstadoDocumentos(persona));
+    const revision = cambios(preparada(), 'exp1', 'validado');
+    revision[0].observacion = 'Revisado y guardado manualmente en expediente físico.';
+    const actual = revisiones.guardar(preparada(), 'exp1', revision);
+    const requisito = actual.inscripciones[0].resumenDocumentos.requisitos[0];
+    assert.equal(requisito.revision.estado, 'validado');
+    assert.equal(requisito.revision.validadoSinDocumentoDigital, true);
+    assert.equal(requisito.revision.observacion, revision[0].observacion);
+    assert.equal(requisito.archivosGuardados, 0);
+    assert.equal(requisito.estado, 'pendiente');
+    assert.equal(fs.existsSync(ruta), false);
+    const otro = revisiones.guardar(preparada(), 'exp2', cambios(preparada(), 'exp2', 'validado'));
+    assert.equal(otro.revisionPersonal, 'revisado');
+    revisiones.finalizar(preparada());
+    const historial = crearRevisiones({ archivo }).historial();
+    assert.equal(historial[0].inscripciones[0].resumenDocumentos.requisitos[0].revision.observacion, revision[0].observacion);
+    assert.equal(historial[0].inscripciones[1].resumenDocumentos.requisitos[0].revision.validadoSinDocumentoDigital, true);
 });
 
 test('API: revisión mixta permite cierre explícito, conserva rechazos y no duplica historial', async (t) => {

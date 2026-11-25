@@ -141,6 +141,7 @@ dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .opciones-revision label:has(input[value="validado"]:checked) { background: #e6f3eb; color: #165b34; border-color: #74a888; }
 .opciones-revision label:has(input[value="incompleto"]:checked) { background: #34343e; color: #fff; border-color: #34343e; }
 .requisito-revision .vista-documento { height: 10rem; }
+.aviso-validacion-manual { padding: .75rem 1rem; border-left: 3px solid var(--guinda); background: var(--guinda-suave); color: var(--guinda-oscuro); font-size: .875rem; line-height: 1.5; }
 #error-revision { padding: 1rem; background: var(--guinda-suave); color: var(--guinda-oscuro); }
 @media (min-width: 1700px) { main { max-width: 110rem; width: 100%; margin-inline: auto; } }
 @media (max-width: 1100px) {
