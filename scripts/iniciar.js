@@ -11,29 +11,32 @@ function prepararInstalacion() {
         .update(`${process.platform}/${process.arch}/${process.versions.node.split('.')[0]}`).digest('hex');
     let guardada;
     try { guardada = JSON.parse(fs.readFileSync('.instalacion-local.json', 'utf8')).firma; } catch (_) { /* Primera ejecución. */ }
+    const guardarInstalacion = () => fs.writeFileSync('.instalacion-local.json', JSON.stringify({ firma }, null, 2) + '\n');
     const ejecutar = (programa, args, extra = {}) => {
         const resultado = spawnSync(programa, args, { cwd: root, stdio: 'inherit', ...extra });
-        if (resultado.error || resultado.status !== 0) throw new Error(resultado.error?.message || `Falló la instalación (${resultado.status}). Revise su conexión y repita el comando.`);
+        if (resultado.error || resultado.status !== 0) throw new Error(resultado.error?.message || `Falló la preparación (${resultado.status}). Revise el mensaje anterior y vuelva a ejecutar iniciar-bot.cmd.`);
     };
     if (guardada !== firma || !fs.existsSync('node_modules/puppeteer/package.json') || !fs.existsSync('node_modules/qrcode-terminal/package.json')) {
-        console.log('Instalando dependencias y Chrome para este equipo. La primera vez puede tardar varios minutos...');
+        console.log('Instalando dependencias para este equipo. Chrome se preparará por separado...');
         // Argumentos constantes: npm.cmd necesita un intérprete en Windows.
-        const env = { ...process.env, HUSKY: '0', PATH: path.dirname(process.execPath) + path.delimiter + process.env.PATH,
-            ...(process.env.BOT_CHROME_PATH ? { PUPPETEER_SKIP_DOWNLOAD: 'true' } : {}) };
+        const env = { ...process.env, HUSKY: '0', PUPPETEER_SKIP_DOWNLOAD: 'true',
+            PATH: path.dirname(process.execPath) + path.delimiter + process.env.PATH };
+        const argumentosNpm = ['ci', '--ignore-scripts', '--no-audit', '--no-fund'];
         const npmCli = process.env.npm_execpath || path.resolve(path.dirname(process.execPath),
             process.platform === 'win32' ? 'node_modules/npm/bin/npm-cli.js' : '../lib/node_modules/npm/bin/npm-cli.js');
-        if (fs.existsSync(npmCli)) ejecutar(process.execPath, [npmCli, 'ci'], { env });
-        else ejecutar(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci'], { shell: process.platform === 'win32', env });
+        if (fs.existsSync(npmCli)) ejecutar(process.execPath, [npmCli, ...argumentosNpm], { env });
+        else ejecutar(process.platform === 'win32' ? 'npm.cmd' : 'npm', argumentosNpm, { shell: process.platform === 'win32', env });
+        // Una descarga de Chrome fallida no debe obligar a reinstalar node_modules.
+        guardarInstalacion();
     }
     const puppeteer = require('puppeteer');
     const navegador = process.env.BOT_CHROME_PATH || puppeteer.executablePath();
     if (!fs.existsSync(navegador)) {
         if (process.env.BOT_CHROME_PATH) throw new Error('BOT_CHROME_PATH no apunta a un navegador existente.');
-        const instalador = path.join(path.dirname(require.resolve('puppeteer/package.json')), 'install.mjs');
-        ejecutar(process.execPath, [instalador], { env: { ...process.env, PUPPETEER_SKIP_DOWNLOAD: 'false', PUPPETEER_CHROME_SKIP_DOWNLOAD: 'false' } });
+        ejecutar(process.execPath, [path.join(__dirname, 'preparar-chrome.js')]);
         if (!fs.existsSync(navegador)) throw new Error('No se pudo descargar Chrome. Revise su conexión y repita el comando.');
     }
-    fs.writeFileSync('.instalacion-local.json', JSON.stringify({ firma }, null, 2) + '\n');
+    guardarInstalacion();
 }
 
 function iniciar() {
