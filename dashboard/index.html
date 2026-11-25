@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Atención a clientes · CODESVI</title>
+        <link rel="stylesheet" href="/dashboard.css" />
+        <script src="/dashboard-config.js" defer></script>
+        <script src="/dashboard.js" defer></script>
+    </head>
+    <body>
+        <a class="saltar-contenido" href="#contenido">Ir al contenido</a>
+        <header class="barra-institucional">
+            <div class="identidad"><strong>CODESVI</strong><span>Comisión Estatal de Desarrollo<br>de Suelo y Vivienda</span></div>
+            <span class="nombre-panel">Panel de atención</span>
+        </header>
+        <div class="distribucion">
+        <aside class="barra-lateral" aria-label="Navegación del dashboard">
+            <p class="etiqueta-seccion">GESTIÓN DE CLIENTES</p>
+            <nav aria-label="Apartados">
+                <button type="button" data-vista="atencion-humana" aria-current="page">Atención humana<span>Solicitudes de apoyo</span></button>
+                <button type="button" data-vista="certeza">Certeza jurídica<span>Escrituración y Regularización</span></button>
+                <button type="button" data-vista="clientes">Clientes del bot<span>Inscripciones y documentos</span></button>
+                <button type="button" data-vista="historial">Historial de atención<span>Personas atendidas y expedientes validados</span></button>
+            </nav>
+        </aside>
+        <main id="contenido">
+            <div class="encabezado-pagina">
+            <p class="etiqueta-seccion">SEGUIMIENTO Y RECOPILACIÓN</p>
+            <h1>Atención a clientes</h1>
+            <p class="descripcion-pagina">
+                Consulte la atención humana y los expedientes recopilados por el
+                bot.
+            </p>
+            </div>
+            <form id="acceso" hidden>
+                <label for="token">Token de acceso a la API</label>
+                <input id="token" type="password" autocomplete="off" required />
+                <button type="submit">Conectar</button>
+            </form>
+            <section class="panel-registros" aria-label="Listado de clientes">
+            <div class="controles">
+                <label for="vista" class="selector-vista"
+                    >Apartado
+                    <select id="vista">
+                        <option value="atencion-humana">Atención humana</option>
+                        <option value="certeza">Certeza jurídica</option>
+                        <option value="clientes">Clientes del bot</option>
+                        <option value="historial">Historial de atención</option>
+                    </select>
+                </label>
+                <label for="estado"
+                    >Estado
+                    <select id="estado">
+                        <option value="pendiente">Pendientes</option>
+                        <option value="atendido">Atendidas</option>
+                        <option value="">Todas</option>
+                    </select>
+                </label>
+                <label for="buscar" class="campo-busqueda"
+                    >Buscar
+                    <input
+                        id="buscar"
+                        type="search"
+                        placeholder="Nombre, teléfono o programa"
+                    />
+                </label>
+                <button id="actualizar" type="button">Actualizar</button>
+            </div>
+            <p id="resumen" role="status" aria-live="polite">
+                Cargando solicitudes…
+            </p>
+            <p id="error" role="alert" hidden></p>
+            <div class="tabla-contenedor">
+                <table>
+                    <caption id="titulo-tabla">
+                        Solicitudes de atención humana
+                    </caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Fecha</th>
+                            <th scope="col">Nombre</th>
+                            <th scope="col">Teléfono / chat</th>
+                            <th scope="col">Programa</th>
+                            <th scope="col">Subprograma</th>
+                            <th scope="col" id="columna-motivo">Motivo</th>
+                            <th scope="col">Estado</th>
+                            <th scope="col">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="solicitudes"></tbody>
+                </table>
+            </div>
+            </section>
+            <dialog id="detalle" hidden aria-labelledby="titulo-detalle">
+                <div class="encabezado-modal">
+                <div><p class="etiqueta-seccion">EXPEDIENTE DEL CLIENTE</p>
+                <h2 id="titulo-detalle" tabindex="-1">
+                    Información y documentos
+                </h2>
+                </div>
+                <button id="cerrar-detalle" type="button">
+                    Cerrar detalle
+                </button>
+                </div>
+                <h3>Inscripciones de esta persona</h3>
+                <div id="inscripciones-detalle" class="acciones"></div>
+                <div class="bloque-datos-expediente">
+                    <dl id="datos-detalle"></dl>
+                    <div id="acciones-carpeta" class="acciones-carpeta">
+                        <button id="abrir-carpeta" type="button" disabled>Abrir carpeta del expediente</button>
+                        <p id="resultado-carpeta" role="status"></p>
+                    </div>
+                </div>
+                <h3>Documentos registrados</h3>
+                <p id="resumen-documentos" role="status"></p>
+                <ul id="documentos-detalle"></ul>
+                <div class="pie-revision">
+                    <p id="estado-validacion-persona"></p>
+                    <button id="abrir-revision" type="button">Revisar documentos de este programa</button>
+                    <button id="marcar-persona-atendida" type="button" disabled>Marcar persona como atendida</button>
+                </div>
+            </dialog>
+            <dialog id="revision-documentos" hidden aria-labelledby="titulo-revision">
+                <div class="encabezado-modal">
+                    <div><p class="etiqueta-seccion">VALIDACIÓN PERSONAL</p><h2 id="titulo-revision">Revisar documentos</h2></div>
+                    <button id="cerrar-revision" type="button">Cerrar revisión</button>
+                </div>
+                <p id="programa-revision"></p>
+                <p>Revise cada requisito y márquelo como validado o incompleto/no válido. Podrá cerrar la atención cuando todos los documentos de todos los programas estén revisados. Los resultados incompletos/no válidos se conservarán en el historial.</p>
+                <form id="formulario-revision">
+                    <div id="requisitos-revision"></div>
+                    <p id="error-revision" role="alert" hidden></p>
+                    <button id="guardar-revision" type="submit">Guardar revisión</button>
+                </form>
+            </dialog>
+        </main>
+        </div>
+    </body>
+</html>

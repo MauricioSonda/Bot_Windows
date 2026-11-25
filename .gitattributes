@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.cmd text eol=crlf
+
+package-lock.json linguist-generated=true text=auto eol=lf
+docs/* linguist-generated=true text=auto eol=lf
