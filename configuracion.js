@@ -16,6 +16,7 @@ module.exports = Object.freeze({
     COMANDOS_ADMIN: Object.freeze({ '!bot pausa': 'pausar', '!bot reanudar': 'reanudar', '!bot humano': 'derivar' }),
     ARCHIVO_CONTROL: path.join(CARPETA_DATOS, '.control-bot.json'),
     READY_RECOVERY_INTERVAL_MS: 5000,
+    INICIO_SESION_TIMEOUT_MS: 0, // 0: esperar sin límite al vincular y sincronizar WhatsApp.
     TELEFONO_REINTENTO_MS: 60000,
     DASHBOARD: Object.freeze({
         ABRIR_AL_INICIAR: true,

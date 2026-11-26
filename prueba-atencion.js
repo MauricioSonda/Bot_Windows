@@ -101,6 +101,8 @@ async function actualizarTelefono(contactoId) {
 
 const client = new Client({
     userAgent: false,
+    authTimeoutMs: CONFIG.INICIO_SESION_TIMEOUT_MS,
+    qrMaxRetries: 0,
     authStrategy: new LocalAuth({
         dataPath: CONFIG.CARPETA_SESION,
     }),
@@ -108,6 +110,8 @@ const client = new Client({
     puppeteer: {
         ...(CONFIG.CHROME_EXECUTABLE_PATH ? { executablePath: CONFIG.CHROME_EXECUTABLE_PATH } : {}),
         headless: false,
+        timeout: CONFIG.INICIO_SESION_TIMEOUT_MS,
+        protocolTimeout: CONFIG.INICIO_SESION_TIMEOUT_MS,
         args: ['--disable-crash-reporter', '--disable-breakpad'],
     },
 });

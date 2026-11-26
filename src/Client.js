@@ -43,7 +43,7 @@ const { exposeFunctionIfAbsent } = require('./util/Puppeteer');
  * @param {AuthStrategy} options.authStrategy - Determines how to save and restore sessions. If not set, NoAuth will be used.
  * @param {string} options.webVersion - The version of WhatsApp Web to use. Use options.webVersionCache to configure how the version is retrieved.
  * @param {object} options.webVersionCache - Determines how to retrieve the WhatsApp Web version. Defaults to a local cache (LocalWebCache) that falls back to latest if the requested version is not found.
- * @param {number} options.authTimeoutMs - Timeout for authentication selector in puppeteer
+ * @param {number} options.authTimeoutMs - Authentication and ready timeout in puppeteer; 0 disables the timeout
  * @param {function} options.evalOnNewDoc - function to eval on new doc
  * @param {object} options.puppeteer - Puppeteer launch options. View docs here: https://github.com/puppeteer/puppeteer/
  * @param {number} options.qrMaxRetries - How many times should the qrcode be refreshed before giving up
@@ -118,7 +118,7 @@ class Client extends EventEmitter {
         this._injectAbort = abort;
 
         try {
-            const authTimeout = this.options.authTimeoutMs || 30000;
+            const authTimeout = this.options.authTimeoutMs ?? 30000;
             await this.pupPage
                 .waitForFunction('window.Debug?.VERSION != undefined', {
                     timeout: authTimeout,
@@ -329,7 +329,7 @@ class Client extends EventEmitter {
                         await this.pupPage
                             .waitForFunction(
                                 'typeof window.WWebJS !== "undefined"',
-                                { timeout: 30000 },
+                                { timeout: authTimeout },
                             )
                             .catch(() => {
                                 throw 'ready timeout';

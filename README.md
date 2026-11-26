@@ -16,6 +16,7 @@ El mismo comando sirve para el primer inicio y los posteriores. Necesita Interne
 2. Instala las dependencias fijadas y Chrome compatible con Puppeteer. El primer inicio puede tardar varios minutos; después reutiliza la instalación salvo que cambien las dependencias.
 3. Crea los datos locales y abre WhatsApp con el dashboard en otra pestaña.
 4. Escanee el QR desde WhatsApp > Dispositivos vinculados. Espere **Listo** en la terminal.
+   No hay límite de espera para iniciar sesión o completar la sincronización. El QR puede renovarse y puede escanear el más reciente cuando esté listo. `INICIO_SESION_TIMEOUT_MS: 0` en `configuracion.js` mantiene esta espera sin límite. Puede cancelar con los controles de apagado habituales.
 5. Desde otro teléfono, envíe un mensaje nuevo al número vinculado después de aparecer **Listo**.
 
 Después de la primera preparación se crean dos accesos en el Escritorio: **Iniciar bot CODESVI** y **Detener bot CODESVI**. El primero ejecuta el iniciador con la terminal minimizada; el segundo solicita un apagado ordenado, sin usar Ctrl+C ni terminar otros Chrome. Conservan las rutas locales configuradas. Si se mueve el proyecto, vuelva a ejecutar `iniciar-bot.cmd` para regenerarlos. Un doble clic cuando ya está encendido abre el dashboard de la misma instancia; durante la instalación no inicia una segunda copia.
