@@ -10,6 +10,7 @@ module.exports = Object.freeze({
     MAX_REPLY_DELAY_MS: 3 * 60 * 1000,
     REPLY_DELAY_ENABLED: true,
     FLOW_REPLY_DELAY_MS: 5 * 1000,
+    FORMATO_SOLICITUD: path.join(__dirname, 'assets', 'formatos', 'FORMATO DE SOLICITUD 2026.pdf'),
     ACTIVAR_CON_CUALQUIER_MENSAJE: true,
     MAX_INTENTOS_DOCUMENTO: 3,
     COMANDOS_ADMIN: Object.freeze({ '!bot pausa': 'pausar', '!bot reanudar': 'reanudar', '!bot humano': 'derivar' }),

@@ -11,6 +11,9 @@ async function enviarFicha(message, customer, update) {
     update({ estado: 'enviando_ficha' });
     try {
         await message.reply(MessageMedia.fromFilePath(config.imagen));
+        if (config.formatoSolicitud) {
+            await message.reply(MessageMedia.fromFilePath(config.formatoSolicitud), undefined, { sendMediaAsDocument: true });
+        }
         await message.reply(MENSAJES.PREPARAR_DOCUMENTOS(customer.subprograma));
         update({ estado: 'pausado_documentos' });
     } catch (error) {

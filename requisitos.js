@@ -1,6 +1,6 @@
 const path = require('path');
 
-const { CARPETA_IMAGENES } = require('./configuracion');
+const { CARPETA_IMAGENES, FORMATO_SOLICITUD } = require('./configuracion');
 const requisito = (id, nombre, extra = {}) => ({ id, nombre, ...extra });
 const vivienda = [
     requisito('INE', 'Credencial INE (frente y reverso)'),
@@ -13,6 +13,7 @@ const vivienda = [
         'Documento que acredite la propiedad del predio',
     ),
     requisito('Solicitud_Programa', 'Escrito de solicitud del programa'),
+    requisito('Formato_Solicitud', 'Formato de solicitud CODESVI 2026 llenado'),
 ];
 
 const REQUISITOS = {
@@ -117,6 +118,7 @@ function obtenerRequisitos(subprograma) {
         throw new Error('No hay requisitos configurados para el subprograma.');
     return {
         imagen: path.join(CARPETA_IMAGENES, config.imagen),
+        formatoSolicitud: config.documentos.some((item) => item.id === 'Formato_Solicitud') ? FORMATO_SOLICITUD : null,
         documentos: config.documentos.map((item) => ({ ...item })),
     };
 }

@@ -16,7 +16,7 @@ const MENSAJES = Object.freeze({
     ATENCION_PERSONAL_CONFIRMADA: (nombre) =>
         `${nombre ? `${nombre}, registramos` : 'Registramos'} su solicitud de atención personal. Una persona encargada le atenderá por este chat en cuanto sea posible.`,
     PREPARAR_DOCUMENTOS: (programa) =>
-        `Le compartimos la información de ${programa}. Lea detenidamente los requisitos y prepare sus documentos para agilizar la recopilación.\n\nLa atención queda pausada. Cuando tenga sus documentos listos, escriba *"reanudar"* para continuar.`,
+        `Le compartimos la información de ${programa} y el formato de solicitud CODESVI 2026. Lea detenidamente los requisitos y llene el formato con sus datos y el programa al que desea inscribirse; deje sin llenar el espacio exclusivo para personal de la CODESVI. Prepare el formato llenado junto con todos sus documentos antes de iniciar el envío. Cuando se lo solicitemos, podrá enviar el formato llenado como PDF o fotografía legible.\n\nLa atención queda pausada. Cuando tenga el formato llenado y sus documentos listos, escriba *"reanudar"* para continuar.`,
     PEDIR_DOCUMENTO: (requisito, indice, total) =>
         `Requisito ${indice + 1} de ${total}: ${requisito.nombre}.\n\n${requisito.tipo === 'texto' ? 'Escriba el dato solicitado.' : 'Envíe una imagen o un PDF. Puede enviar varias páginas; cuando termine este requisito, escriba "siguiente".'}${requisito.opcional ? '\nSi no corresponde a su caso, escriba "no aplica".' : ''}`,
     ARCHIVO_NO_PERMITIDO:
@@ -29,7 +29,7 @@ const MENSAJES = Object.freeze({
     ERROR_DOCUMENTOS:
         'No se pudo guardar o enviar la información. Su avance se conserva. Intente nuevamente con el mismo archivo o escriba "reanudar" para ver el requisito pendiente.',
     ERROR_FICHA:
-        'No se pudo enviar la ficha del programa. Escriba "reanudar" para volver a intentarlo.',
+        'No se pudo completar el envío de la ficha o del formato de solicitud. Escriba "reanudar" para volver a intentarlo.',
     FLUJO_EN_CURSO:
         'Ya tiene una recopilación en curso. Escriba "reanudar" para continuar con su expediente.',
     DOCUMENTOS_COMPLETOS: (nombre, programa) =>
