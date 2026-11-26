@@ -34,7 +34,7 @@ const MENSAJES = Object.freeze({
         'Ya tiene una recopilación en curso. Escriba "reanudar" para continuar con su expediente.',
     DOCUMENTOS_COMPLETOS: (nombre, programa) =>
         `Gracias, ${nombre}. Recibimos los requisitos de su solicitud para ${programa}. Quedan pendientes de revisión; la recepción no significa que estén validados.`,
-    BOT_ACTIVO: 'Bienvenido al bot de prueba de CODESVI.',
+    BOT_ACTIVO: 'Soy el asistente virtual de la CODESVI',
 
     SOLICITAR_NOMBRE: '¿Cuál es tu nombre completo?',
 
